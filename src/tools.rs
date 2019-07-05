@@ -6,8 +6,8 @@
 use std::io;
 use std::os::unix::io::{AsRawFd, FromRawFd, IntoRawFd, RawFd};
 
-use mio::{PollOpt, Ready, Token};
 use mio::unix::EventedFd;
+use mio::{PollOpt, Ready, Token};
 
 /// Guard a raw file descriptor with a drop handler. This is mostly useful when access to an owned
 /// `RawFd` is required without the corresponding handler object (such as when only the file
@@ -83,7 +83,7 @@ pub mod vec {
     ///     v.set_len(len);
     /// }
     /// ```
-#[inline]
+    #[inline]
     pub unsafe fn uninitialized(len: usize) -> Vec<u8> {
         let mut out = Vec::with_capacity(len);
         out.set_len(len);

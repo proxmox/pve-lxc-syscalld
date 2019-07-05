@@ -55,7 +55,10 @@ async fn async_run_do() -> Result<(), Error> {
 
 async fn handle_client(client: AsyncSeqPacketSocket) {
     if let Err(err) = handle_client_do(client).await {
-        eprintln!("error communicating with client, dropping connection: {}", err);
+        eprintln!(
+            "error communicating with client, dropping connection: {}",
+            err
+        );
     }
 }
 

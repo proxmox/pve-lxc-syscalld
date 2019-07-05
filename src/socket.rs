@@ -1,13 +1,13 @@
 use std::convert::TryFrom;
-use std::task::Context;
-use std::task::Poll;
 use std::os::raw::c_void;
 use std::os::unix::io::{AsRawFd, FromRawFd, IntoRawFd, RawFd};
+use std::task::Context;
+use std::task::Poll;
 use std::{io, mem, ptr};
 
 use failure::{bail, Error};
-use futures::ready;
 use futures::future::poll_fn;
+use futures::ready;
 use nix::sys::socket::{AddressFamily, SockAddr, SockFlag, SockType};
 
 use super::tools::{vec, Fd};
@@ -46,9 +46,7 @@ impl SeqPacketSocket {
         msg.msg_control = cmsgbuf.as_mut_ptr() as *mut c_void;
         let _ = &cmsgbuf; // from now on we only use raw pointer stuff
 
-        let received = unsafe {
-            libc::recvmsg(self.fd(), &mut msg, libc::MSG_CMSG_CLOEXEC)
-        };
+        let received = unsafe { libc::recvmsg(self.fd(), &mut msg, libc::MSG_CMSG_CLOEXEC) };
         if received < 0 {
             return Err(io::Error::last_os_error());
         }
@@ -141,16 +139,10 @@ impl SeqPacketListener {
             bail!("duplicate file descriptor registration?");
         }
 
-        Ok(Self {
-            fd,
-            registration,
-        })
+        Ok(Self { fd, registration })
     }
 
-    pub fn poll_accept(
-        &mut self,
-        cx: &mut Context,
-    ) -> Poll<io::Result<AsyncSeqPacketSocket>> {
+    pub fn poll_accept(&mut self, cx: &mut Context) -> Poll<io::Result<AsyncSeqPacketSocket>> {
         let fd = loop {
             match nix::sys::socket::accept4(
                 self.fd.as_raw_fd(),
@@ -172,8 +164,8 @@ impl SeqPacketListener {
                             io::ErrorKind::Other,
                             "unexpected non-OS error in nix::sys::socket::accept4()",
                         )));
-                    },
-                }
+                    }
+                },
             };
         };
 
@@ -233,7 +225,7 @@ impl AsyncSeqPacketSocket {
                         Ok(_) => continue,
                         Err(err) => break Poll::Ready(Err(err)),
                     }
-                },
+                }
                 Err(err) => break Poll::Ready(Err(err)),
             }
         }
@@ -256,7 +248,7 @@ impl AsyncSeqPacketSocket {
                         Ok(_) => continue,
                         Err(err) => break Poll::Ready(Err(err)),
                     }
-                },
+                }
                 Err(err) => break Poll::Ready(Err(err)),
             }
         }

@@ -119,7 +119,12 @@ impl ProxyMessageBuffer {
         }
 
         if len != self.seccomp_packet_size + self.cookie_len() {
-            bail!("seccomp proxy packet contains unexpected cookie length {} + {} != {}", self.seccomp_packet_size, self.cookie_len(), len);
+            bail!(
+                "seccomp proxy packet contains unexpected cookie length {} + {} != {}",
+                self.seccomp_packet_size,
+                self.cookie_len(),
+                len
+            );
         }
 
         unsafe {
