@@ -12,5 +12,5 @@ failure = "0.1"
 libc = "0.2"
 mio = "0.6"
 nix = "0.14"
-futures-preview = { version = "0.3.0-alpha.17", features = [ "compat", "io-compat" ] }
+futures-preview = { version = "0.3.0-alpha.17" }
 tokio = { version = "0.2", git = "https://github.com/tokio-rs/tokio" }
