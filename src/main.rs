@@ -2,6 +2,7 @@
 
 use std::ffi::OsString;
 use std::io;
+use std::sync::Arc;
 
 use failure::{bail, format_err, Error};
 use nix::sys::socket::SockAddr;
@@ -51,11 +52,11 @@ async fn async_run_do(socket_path: OsString) -> Result<(), Error> {
         .map_err(|e| format_err!("failed to create listening socket: {}", e))?;
     loop {
         let client = listener.accept().await?;
-        tokio::spawn(handle_client(client));
+        tokio::spawn(handle_client(Arc::new(client)));
     }
 }
 
-async fn handle_client(client: AsyncSeqPacketSocket) {
+async fn handle_client(client: Arc<AsyncSeqPacketSocket>) {
     if let Err(err) = handle_client_do(client).await {
         eprintln!(
             "error communicating with client, dropping connection: {}",
@@ -64,7 +65,7 @@ async fn handle_client(client: AsyncSeqPacketSocket) {
     }
 }
 
-async fn handle_client_do(client: AsyncSeqPacketSocket) -> Result<(), Error> {
+async fn handle_client_do(client: Arc<AsyncSeqPacketSocket>) -> Result<(), Error> {
     let mut msgbuf = lxcseccomp::ProxyMessageBuffer::new(64)
         .map_err(|e| format_err!("failed to allocate proxy message buffer: {}", e))?;
 
