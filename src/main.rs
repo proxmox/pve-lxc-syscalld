@@ -64,7 +64,7 @@ async fn handle_client(client: AsyncSeqPacketSocket) {
     }
 }
 
-async fn handle_client_do(mut client: AsyncSeqPacketSocket) -> Result<(), Error> {
+async fn handle_client_do(client: AsyncSeqPacketSocket) -> Result<(), Error> {
     let mut msgbuf = lxcseccomp::ProxyMessageBuffer::new(64)
         .map_err(|e| format_err!("failed to allocate proxy message buffer: {}", e))?;
 

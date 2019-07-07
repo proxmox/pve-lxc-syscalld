@@ -26,7 +26,7 @@ impl SeqPacketSocket {
     }
 
     pub fn recv_fds_vectored(
-        &mut self,
+        &self,
         iov: &mut [IoVecMut],
         num_fds: usize,
     ) -> io::Result<(usize, Vec<Fd>)> {
@@ -77,7 +77,7 @@ impl SeqPacketSocket {
     ///
     /// Note that short writes are silently treated as success, since this is a `SOCK_SEQPACKET`,
     /// so neither continuing nor repeating a partial messages makes all that much sense.
-    pub fn sendmsg_vectored(&mut self, iov: &[IoVec]) -> io::Result<()> {
+    pub fn sendmsg_vectored(&self, iov: &[IoVec]) -> io::Result<()> {
         let mut msg: libc::msghdr = unsafe { mem::zeroed() };
         msg.msg_iov = iov.as_ptr() as *const libc::iovec as *mut libc::iovec;
         msg.msg_iovlen = iov.len();
@@ -206,7 +206,7 @@ impl AsyncSeqPacketSocket {
     }
 
     pub fn poll_recv_fds_vectored(
-        &mut self,
+        &self,
         iov: &mut [IoVecMut],
         num_fds: usize,
         cx: &mut Context,
@@ -226,7 +226,7 @@ impl AsyncSeqPacketSocket {
     }
 
     pub async fn recv_fds_vectored(
-        &mut self,
+        &self,
         iov: &mut [IoVecMut<'_>],
         num_fds: usize,
     ) -> io::Result<(usize, Vec<Fd>)> {
@@ -234,7 +234,7 @@ impl AsyncSeqPacketSocket {
     }
 
     pub fn poll_sendmsg_vectored(
-        &mut self,
+        &self,
         data: &[IoVec],
         cx: &mut Context,
     ) -> Poll<io::Result<()>> {
@@ -252,7 +252,7 @@ impl AsyncSeqPacketSocket {
         }
     }
 
-    pub async fn sendmsg_vectored(&mut self, data: &[IoVec<'_>]) -> io::Result<()> {
+    pub async fn sendmsg_vectored(&self, data: &[IoVec<'_>]) -> io::Result<()> {
         poll_fn(move |cx| self.poll_sendmsg_vectored(data, cx)).await
     }
 }
