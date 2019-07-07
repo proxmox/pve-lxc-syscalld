@@ -10,7 +10,7 @@ use futures::future::poll_fn;
 use futures::ready;
 use nix::sys::socket::{AddressFamily, SockAddr, SockFlag, SockType};
 
-use super::tools::{vec, Fd, IoVec, IoVecMut};
+use crate::tools::{vec, Fd, IoVec, IoVecMut};
 
 pub struct SeqPacketSocket(Fd);
 
@@ -94,6 +94,12 @@ impl SeqPacketSocket {
 
     fn as_fd(&self) -> &Fd {
         &self.0
+    }
+
+    /// Shutdown parts of the socket.
+    #[inline]
+    pub fn shutdown(&self, how: nix::sys::socket::Shutdown) -> nix::Result<()> {
+        nix::sys::socket::shutdown(self.as_raw_fd(), how)
     }
 }
 
@@ -205,6 +211,12 @@ impl AsyncSeqPacketSocket {
         })
     }
 
+    /// Shutdown parts of the socket.
+    #[inline]
+    pub fn shutdown(&self, how: nix::sys::socket::Shutdown) -> nix::Result<()> {
+        self.socket.shutdown(how)
+    }
+
     pub fn poll_recv_fds_vectored(
         &self,
         iov: &mut [IoVecMut],
@@ -233,11 +245,7 @@ impl AsyncSeqPacketSocket {
         poll_fn(move |cx| self.poll_recv_fds_vectored(iov, num_fds, cx)).await
     }
 
-    pub fn poll_sendmsg_vectored(
-        &self,
-        data: &[IoVec],
-        cx: &mut Context,
-    ) -> Poll<io::Result<()>> {
+    pub fn poll_sendmsg_vectored(&self, data: &[IoVec], cx: &mut Context) -> Poll<io::Result<()>> {
         loop {
             match self.socket.sendmsg_vectored(data) {
                 Ok(res) => break Poll::Ready(Ok(res)),

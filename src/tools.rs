@@ -6,9 +6,57 @@
 use std::io;
 use std::marker::PhantomData;
 use std::os::unix::io::{AsRawFd, FromRawFd, IntoRawFd, RawFd};
+use std::pin::Pin;
+use std::task::{Context, Poll};
 
+use failure::{bail, Error};
+use futures::io::{AsyncRead, AsyncWrite};
+use futures::ready;
 use mio::unix::EventedFd;
 use mio::{PollOpt, Ready, Token};
+
+#[macro_export]
+macro_rules! file_descriptor_type {
+    ($type:ident) => {
+        #[repr(transparent)]
+        pub struct $type(RawFd);
+
+        crate::file_descriptor_impl!($type);
+    };
+}
+
+#[macro_export]
+macro_rules! file_descriptor_impl {
+    ($type:ty) => {
+        impl Drop for $type {
+            fn drop(&mut self) {
+                unsafe {
+                    libc::close(self.0);
+                }
+            }
+        }
+
+        impl AsRawFd for $type {
+            fn as_raw_fd(&self) -> RawFd {
+                self.0
+            }
+        }
+
+        impl IntoRawFd for $type {
+            fn into_raw_fd(mut self) -> RawFd {
+                let fd = self.0;
+                self.0 = -libc::EBADF;
+                fd
+            }
+        }
+
+        impl FromRawFd for $type {
+            unsafe fn from_raw_fd(fd: RawFd) -> Self {
+                Self(fd)
+            }
+        }
+    };
+}
 
 /// Guard a raw file descriptor with a drop handler. This is mostly useful when access to an owned
 /// `RawFd` is required without the corresponding handler object (such as when only the file
@@ -16,35 +64,7 @@ use mio::{PollOpt, Ready, Token};
 #[repr(transparent)]
 pub struct Fd(pub RawFd);
 
-impl Drop for Fd {
-    fn drop(&mut self) {
-        if self.0 != -1 {
-            unsafe {
-                libc::close(self.0);
-            }
-        }
-    }
-}
-
-impl AsRawFd for Fd {
-    fn as_raw_fd(&self) -> RawFd {
-        self.0
-    }
-}
-
-impl IntoRawFd for Fd {
-    fn into_raw_fd(mut self) -> RawFd {
-        let fd = self.0;
-        self.0 = -1;
-        fd
-    }
-}
-
-impl FromRawFd for Fd {
-    unsafe fn from_raw_fd(fd: RawFd) -> Self {
-        Self(fd)
-    }
-}
+file_descriptor_impl!(Fd);
 
 impl mio::Evented for Fd {
     fn register(
@@ -69,6 +89,127 @@ impl mio::Evented for Fd {
 
     fn deregister(&self, poll: &mio::Poll) -> io::Result<()> {
         poll.deregister(&EventedFd(&self.0))
+    }
+}
+
+pub struct AsyncFd {
+    fd: Fd,
+    registration: tokio::reactor::Registration,
+}
+
+impl Drop for AsyncFd {
+    fn drop(&mut self) {
+        if let Err(err) = self.registration.deregister(&self.fd) {
+            eprintln!("failed to deregister I/O resource with reactor: {}", err);
+        }
+    }
+}
+
+impl AsyncFd {
+    pub fn new(fd: Fd) -> Result<Self, Error> {
+        let registration = tokio::reactor::Registration::new();
+        if !registration.register(&fd)? {
+            bail!("duplicate file descriptor registration?");
+        }
+
+        Ok(Self { fd, registration })
+    }
+
+    pub fn poll_read_ready(&self, cx: &mut Context) -> Poll<io::Result<mio::Ready>> {
+        self.registration.poll_read_ready(cx)
+    }
+
+    pub fn poll_write_ready(&self, cx: &mut Context) -> Poll<io::Result<mio::Ready>> {
+        self.registration.poll_write_ready(cx)
+    }
+}
+
+impl AsRawFd for AsyncFd {
+    fn as_raw_fd(&self) -> RawFd {
+        self.fd.as_raw_fd()
+    }
+}
+
+// At the time of writing, tokio-fs in master was disabled as it wasn't updated to futures@0.3 yet.
+pub struct GenericStream(Option<AsyncFd>);
+
+impl GenericStream {
+    pub fn from_fd(fd: Fd) -> Result<Self, Error> {
+        AsyncFd::new(fd).map(|fd| Self(Some(fd)))
+    }
+
+    fn raw_fd(&self) -> RawFd {
+        self.0
+            .as_ref()
+            .map(|fd| fd.as_raw_fd())
+            .unwrap_or(-libc::EBADF)
+    }
+
+    pub fn poll_read_ready(&self, cx: &mut Context) -> Poll<io::Result<mio::Ready>> {
+        match self.0 {
+            Some(ref fd) => fd.poll_read_ready(cx),
+            None => Poll::Ready(Err(io::ErrorKind::InvalidInput.into())),
+        }
+    }
+
+    pub fn poll_write_ready(&self, cx: &mut Context) -> Poll<io::Result<mio::Ready>> {
+        match self.0 {
+            Some(ref fd) => fd.poll_write_ready(cx),
+            None => Poll::Ready(Err(io::ErrorKind::InvalidInput.into())),
+        }
+    }
+}
+
+impl AsyncRead for GenericStream {
+    fn poll_read(
+        self: Pin<&mut Self>,
+        cx: &mut Context,
+        buf: &mut [u8],
+    ) -> Poll<io::Result<usize>> {
+        loop {
+            let res = unsafe { libc::read(self.raw_fd(), buf.as_mut_ptr() as *mut _, buf.len()) };
+            if res >= 0 {
+                return Poll::Ready(Ok(res as usize));
+            }
+
+            let err = io::Error::last_os_error();
+            if err.kind() == io::ErrorKind::WouldBlock {
+                match ready!(self.poll_read_ready(cx)) {
+                    Ok(_) => continue,
+                    Err(err) => return Poll::Ready(Err(err)),
+                }
+            }
+            return Poll::Ready(Err(err));
+        }
+    }
+}
+
+impl AsyncWrite for GenericStream {
+    fn poll_write(self: Pin<&mut Self>, cx: &mut Context, buf: &[u8]) -> Poll<io::Result<usize>> {
+        loop {
+            let res = unsafe { libc::write(self.raw_fd(), buf.as_ptr() as *const _, buf.len()) };
+            if res >= 0 {
+                return Poll::Ready(Ok(res as usize));
+            }
+
+            let err = io::Error::last_os_error();
+            if err.kind() == io::ErrorKind::WouldBlock {
+                match ready!(self.poll_write_ready(cx)) {
+                    Ok(_) => continue,
+                    Err(err) => return Poll::Ready(Err(err)),
+                }
+            }
+            return Poll::Ready(Err(err));
+        }
+    }
+
+    fn poll_flush(self: Pin<&mut Self>, _cx: &mut Context) -> Poll<io::Result<()>> {
+        Poll::Ready(Ok(()))
+    }
+
+    fn poll_close(self: Pin<&mut Self>, _cx: &mut Context) -> Poll<io::Result<()>> {
+        std::mem::drop(self.get_mut().0.take());
+        Poll::Ready(Ok(()))
     }
 }
 
@@ -131,4 +272,34 @@ impl IoVecMut<'_> {
             _phantom: PhantomData,
         }
     }
+}
+
+#[macro_export]
+macro_rules! libc_wrap {
+    ($expr:expr) => {{
+        let res = $expr;
+        if res == -1 {
+            Err(io::Error::last_os_error())
+        } else {
+            Ok::<_, io::Error>(res)
+        }
+    }};
+}
+
+#[macro_export]
+macro_rules! libc_try {
+    ($expr:expr) => {{
+        let res = $expr;
+        if res == -1 {
+            return Err(io::Error::last_os_error());
+        } else {
+            res
+        }
+    }};
+}
+
+pub fn path_ptr(path: &std::path::Path) -> *const libc::c_char {
+    use std::os::unix::ffi::OsStrExt;
+
+    path.as_os_str().as_bytes().as_ptr() as *const libc::c_char
 }

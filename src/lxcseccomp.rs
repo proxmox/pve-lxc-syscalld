@@ -1,14 +1,14 @@
 //! Module for LXC specific related seccomp handling.
 
 use std::convert::TryFrom;
-use std::{io, mem};
+use std::mem;
 
 use failure::{bail, Error};
 use lazy_static::lazy_static;
 use libc::pid_t;
 
-use super::seccomp::{SeccompNotif, SeccompNotifResp, SeccompNotifSizes};
-use super::tools::{IoVec, IoVecMut};
+use crate::seccomp::{SeccompNotif, SeccompNotifResp, SeccompNotifSizes};
+use crate::tools::{IoVec, IoVecMut};
 
 /// Seccomp notification proxy message sent by the lxc monitor.
 ///
@@ -46,7 +46,6 @@ pub struct SeccompNotifyProxyMsg {
 }
 
 /// Helper to receive and verify proxy notification messages.
-#[repr(C)]
 pub struct ProxyMessageBuffer {
     proxy_msg: SeccompNotifyProxyMsg,
     seccomp_notif: SeccompNotif,
@@ -72,27 +71,28 @@ unsafe fn io_vec<T>(value: &T) -> IoVec {
 }
 
 lazy_static! {
-    static ref SECCOMP_SIZES: SeccompNotifSizes =
-        SeccompNotifSizes::get_checked().map_err(|e| panic!("{}\nrefusing to run", e)).unwrap();
+    static ref SECCOMP_SIZES: SeccompNotifSizes = SeccompNotifSizes::get_checked()
+        .map_err(|e| panic!("{}\nrefusing to run", e))
+        .unwrap();
 }
 
 impl ProxyMessageBuffer {
     /// Allocate a new proxy message buffer with a specific maximum cookie size.
-    pub fn new(max_cookie: usize) -> io::Result<Self> {
+    pub fn new(max_cookie: usize) -> Self {
         let sizes = SECCOMP_SIZES.clone();
 
         let seccomp_packet_size = mem::size_of::<SeccompNotifyProxyMsg>()
             + sizes.notif as usize
             + sizes.notif_resp as usize;
 
-        Ok(Self {
+        Self {
             proxy_msg: unsafe { mem::zeroed() },
             seccomp_notif: unsafe { mem::zeroed() },
             seccomp_resp: unsafe { mem::zeroed() },
             cookie_buf: unsafe { super::tools::vec::uninitialized(max_cookie) },
             sizes,
             seccomp_packet_size,
-        })
+        }
     }
 
     /// Resets the buffer capacity and returns an IoVecMut used to fill the buffer.

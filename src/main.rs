@@ -2,17 +2,31 @@
 
 use std::ffi::OsString;
 use std::io;
-use std::sync::Arc;
 
 use failure::{bail, format_err, Error};
 use nix::sys::socket::SockAddr;
 
+pub mod client;
+pub mod fork;
 pub mod lxcseccomp;
+pub mod nsfd;
+pub mod pidfd;
 pub mod seccomp;
 pub mod socket;
+pub mod sys_mknod;
 pub mod tools;
 
-use socket::{AsyncSeqPacketSocket, SeqPacketListener};
+use socket::SeqPacketListener;
+
+pub enum SyscallStatus {
+    Ok(i64),
+    Err(i32),
+}
+
+pub struct SyscallMeta {
+    //pid: pidfd::PidFd,
+    memory: std::fs::File,
+}
 
 fn main() {
     if let Err(err) = run() {
@@ -52,46 +66,7 @@ async fn async_run_do(socket_path: OsString) -> Result<(), Error> {
         .map_err(|e| format_err!("failed to create listening socket: {}", e))?;
     loop {
         let client = listener.accept().await?;
-        tokio::spawn(handle_client(Arc::new(client)));
+        let client = client::Client::new(client);
+        tokio::spawn(client.main());
     }
-}
-
-async fn handle_client(client: Arc<AsyncSeqPacketSocket>) {
-    if let Err(err) = handle_client_do(client).await {
-        eprintln!(
-            "error communicating with client, dropping connection: {}",
-            err
-        );
-    }
-}
-
-async fn handle_client_do(client: Arc<AsyncSeqPacketSocket>) -> Result<(), Error> {
-    let mut msgbuf = lxcseccomp::ProxyMessageBuffer::new(64)
-        .map_err(|e| format_err!("failed to allocate proxy message buffer: {}", e))?;
-
-    loop {
-        let (size, _fds) = {
-            let mut iovec = msgbuf.io_vec_mut();
-            client.recv_fds_vectored(&mut iovec, 1).await?
-        };
-
-        if size == 0 {
-            println!("client disconnected");
-            break;
-        }
-
-        msgbuf.set_len(size)?;
-
-        let req = msgbuf.request();
-        println!("Received request for syscall {}", req.data.nr);
-
-        let resp = msgbuf.response_mut();
-        resp.val = 0;
-        resp.error = -libc::ENOENT;
-
-        let iovec = msgbuf.io_vec_no_cookie();
-        client.sendmsg_vectored(&iovec).await?;
-    }
-
-    Ok(())
 }
