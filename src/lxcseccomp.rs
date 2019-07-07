@@ -4,6 +4,7 @@ use std::convert::TryFrom;
 use std::{io, mem};
 
 use failure::{bail, Error};
+use lazy_static::lazy_static;
 use libc::pid_t;
 
 use super::seccomp::{SeccompNotif, SeccompNotifResp, SeccompNotifSizes};
@@ -70,10 +71,15 @@ unsafe fn io_vec<T>(value: &T) -> IoVec {
     ))
 }
 
+lazy_static! {
+    static ref SECCOMP_SIZES: SeccompNotifSizes =
+        SeccompNotifSizes::get_checked().map_err(|e| panic!("{}\nrefusing to run", e)).unwrap();
+}
+
 impl ProxyMessageBuffer {
     /// Allocate a new proxy message buffer with a specific maximum cookie size.
     pub fn new(max_cookie: usize) -> io::Result<Self> {
-        let sizes = SeccompNotifSizes::get_checked()?;
+        let sizes = SECCOMP_SIZES.clone();
 
         let seccomp_packet_size = mem::size_of::<SeccompNotifyProxyMsg>()
             + sizes.notif as usize
