@@ -1,5 +1,6 @@
 #![feature(async_await)]
 
+use std::ffi::OsString;
 use std::io;
 
 use failure::{bail, format_err, Error};
@@ -12,9 +13,6 @@ pub mod tools;
 
 use socket::{AsyncSeqPacketSocket, SeqPacketListener};
 
-const SOCKET_DIR: &'static str = "/run/pve";
-const SOCKET_PATH: &'static str = "/run/pve/lxc-syscalld.sock";
-
 fn main() {
     if let Err(err) = run() {
         eprintln!("error: {}", err);
@@ -23,27 +21,31 @@ fn main() {
 }
 
 fn run() -> Result<(), Error> {
-    let _ = std::fs::create_dir(SOCKET_DIR);
+    let socket_path = std::env::args_os()
+        .skip(1)
+        .next()
+        .ok_or_else(|| format_err!("missing parameter: socket path to listen on"))?;
 
-    match std::fs::remove_file(SOCKET_PATH) {
+    match std::fs::remove_file(&socket_path) {
         Ok(_) => (),
         Err(ref e) if e.kind() == io::ErrorKind::NotFound => (), // Ok
         Err(e) => bail!("failed to remove previous socket: {}", e),
     }
 
-    tokio::run(async_run());
+    tokio::run(async_run(socket_path));
 
     Ok(())
 }
 
-async fn async_run() {
-    if let Err(err) = async_run_do().await {
+async fn async_run(socket_path: OsString) {
+    if let Err(err) = async_run_do(socket_path).await {
         eprintln!("error accepting clients, bailing out: {}", err);
     }
 }
 
-async fn async_run_do() -> Result<(), Error> {
-    let address = SockAddr::new_unix(SOCKET_PATH).expect("cannot create struct sockaddr_un?");
+async fn async_run_do(socket_path: OsString) -> Result<(), Error> {
+    let address =
+        SockAddr::new_unix(socket_path.as_os_str()).expect("cannot create struct sockaddr_un?");
 
     let mut listener = SeqPacketListener::bind(&address)
         .map_err(|e| format_err!("failed to create listening socket: {}", e))?;
@@ -67,7 +69,11 @@ async fn handle_client_do(mut client: AsyncSeqPacketSocket) -> Result<(), Error>
         .map_err(|e| format_err!("failed to allocate proxy message buffer: {}", e))?;
 
     loop {
-        let (size, _fds) = client.recv_fds(unsafe { msgbuf.new_mut() }, 1).await?;
+        let (size, _fds) = {
+            let mut iovec = msgbuf.io_vec_mut();
+            client.recv_fds_vectored(&mut iovec, 1).await?
+        };
+
         if size == 0 {
             println!("client disconnected");
             break;
@@ -82,7 +88,8 @@ async fn handle_client_do(mut client: AsyncSeqPacketSocket) -> Result<(), Error>
         resp.val = 0;
         resp.error = -libc::ENOENT;
 
-        client.sendmsg(msgbuf.as_buf_no_cookie()).await?;
+        let iovec = msgbuf.io_vec_no_cookie();
+        client.sendmsg_vectored(&iovec).await?;
     }
 
     Ok(())

@@ -2,8 +2,8 @@
 //!
 //! Mostly provides data structures.
 
-use std::io;
 use std::os::raw::c_int;
+use std::{io, mem};
 
 /// Contains syscall data.
 #[repr(C)]
@@ -72,5 +72,29 @@ impl SeccompNotifSizes {
         } else {
             Err(io::Error::last_os_error())
         }
+    }
+
+    /// Check whether the kernel's data structure sizes match the one this
+    /// crate was compiled with.
+    pub fn check(&self) -> io::Result<()> {
+        if usize::from(self.notif) != mem::size_of::<SeccompNotif>()
+            || usize::from(self.notif_resp) != mem::size_of::<SeccompNotifResp>()
+            || usize::from(self.data) != mem::size_of::<SeccompData>()
+        {
+            Err(io::Error::new(
+                io::ErrorKind::Other,
+                "seccomp data structure size mismatch",
+            ))
+        } else {
+            Ok(())
+        }
+    }
+
+    /// Query the kernel for its data structure sizes and check whether they
+    /// match this ones this crate was compiled with.
+    pub fn get_checked() -> io::Result<Self> {
+        let this = Self::get()?;
+        this.check()?;
+        Ok(this)
     }
 }

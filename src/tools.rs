@@ -4,6 +4,7 @@
 //! crate as that's where we have all this stuff usually...
 
 use std::io;
+use std::marker::PhantomData;
 use std::os::unix::io::{AsRawFd, FromRawFd, IntoRawFd, RawFd};
 
 use mio::unix::EventedFd;
@@ -88,5 +89,46 @@ pub mod vec {
         let mut out = Vec::with_capacity(len);
         out.set_len(len);
         out
+    }
+}
+
+/// The standard IoSlice does not implement Send and Sync. These types do.
+pub struct IoVec<'a> {
+    _iov: libc::iovec,
+    _phantom: PhantomData<&'a [u8]>,
+}
+
+unsafe impl Send for IoVec<'_> {}
+unsafe impl Sync for IoVec<'_> {}
+
+impl IoVec<'_> {
+    pub fn new(slice: &[u8]) -> Self {
+        Self {
+            _iov: libc::iovec {
+                iov_base: slice.as_ptr() as *mut libc::c_void,
+                iov_len: slice.len(),
+            },
+            _phantom: PhantomData,
+        }
+    }
+}
+
+pub struct IoVecMut<'a> {
+    _iov: libc::iovec,
+    _phantom: PhantomData<&'a [u8]>,
+}
+
+unsafe impl Send for IoVecMut<'_> {}
+unsafe impl Sync for IoVecMut<'_> {}
+
+impl IoVecMut<'_> {
+    pub fn new(slice: &mut [u8]) -> Self {
+        Self {
+            _iov: libc::iovec {
+                iov_base: slice.as_mut_ptr() as *mut libc::c_void,
+                iov_len: slice.len(),
+            },
+            _phantom: PhantomData,
+        }
     }
 }

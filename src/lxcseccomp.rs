@@ -7,6 +7,7 @@ use failure::{bail, Error};
 use libc::pid_t;
 
 use super::seccomp::{SeccompNotif, SeccompNotifResp, SeccompNotifSizes};
+use super::tools::{IoVec, IoVecMut};
 
 /// Seccomp notification proxy message sent by the lxc monitor.
 ///
@@ -46,53 +47,82 @@ pub struct SeccompNotifyProxyMsg {
 /// Helper to receive and verify proxy notification messages.
 #[repr(C)]
 pub struct ProxyMessageBuffer {
-    buffer: Vec<u8>,
+    proxy_msg: SeccompNotifyProxyMsg,
+    seccomp_notif: SeccompNotif,
+    seccomp_resp: SeccompNotifResp,
+    cookie_buf: Vec<u8>,
+
     sizes: SeccompNotifSizes,
     seccomp_packet_size: usize,
+}
+
+unsafe fn io_vec_mut<T>(value: &mut T) -> IoVecMut {
+    IoVecMut::new(std::slice::from_raw_parts_mut(
+        value as *mut T as *mut u8,
+        mem::size_of::<T>(),
+    ))
+}
+
+unsafe fn io_vec<T>(value: &T) -> IoVec {
+    IoVec::new(std::slice::from_raw_parts(
+        value as *const T as *const u8,
+        mem::size_of::<T>(),
+    ))
 }
 
 impl ProxyMessageBuffer {
     /// Allocate a new proxy message buffer with a specific maximum cookie size.
     pub fn new(max_cookie: usize) -> io::Result<Self> {
-        let sizes = SeccompNotifSizes::get()?;
-        let max_size = sizes.notif as usize + sizes.notif_resp as usize + max_cookie;
+        let sizes = SeccompNotifSizes::get_checked()?;
+
         let seccomp_packet_size = mem::size_of::<SeccompNotifyProxyMsg>()
             + sizes.notif as usize
             + sizes.notif_resp as usize;
+
         Ok(Self {
-            buffer: unsafe { super::tools::vec::uninitialized(max_size) },
+            proxy_msg: unsafe { mem::zeroed() },
+            seccomp_notif: unsafe { mem::zeroed() },
+            seccomp_resp: unsafe { mem::zeroed() },
+            cookie_buf: unsafe { super::tools::vec::uninitialized(max_cookie) },
             sizes,
             seccomp_packet_size,
         })
     }
 
-    /// Allow this buffer to be filled with new data.
+    /// Resets the buffer capacity and returns an IoVecMut used to fill the buffer.
     ///
-    /// This resets the buffer's length to its full capacity and returns a mutable slice.
-    ///
-    /// After this you must call `set_len()` with the number of bytes written to the buffer to
-    /// verify the new contents.
-    pub unsafe fn new_mut(&mut self) -> &mut [u8] {
-        self.buffer.set_len(self.buffer.capacity());
-        &mut self.buffer[..]
-    }
+    /// This vector covers the cookie buffer, but unless `set_len` is used afterwards with the real
+    /// size read into the slice, the cookie will appear empty.
+    pub fn io_vec_mut(&mut self) -> [IoVecMut; 4] {
+        self.proxy_msg.cookie_len = 0;
 
-    fn drop_cookie(&mut self) {
-        self.msg_mut().cookie_len = 0;
         unsafe {
-            self.buffer.set_len(self.seccomp_packet_size);
+            self.cookie_buf.set_len(self.cookie_buf.capacity());
         }
+
+        let out = [
+            unsafe { io_vec_mut(&mut self.proxy_msg) },
+            unsafe { io_vec_mut(&mut self.seccomp_notif) },
+            unsafe { io_vec_mut(&mut self.seccomp_resp) },
+            IoVecMut::new(self.cookie_buf.as_mut_slice()),
+        ];
+
+        unsafe {
+            self.cookie_buf.set_len(0);
+        }
+
+        out
     }
 
     /// Prepare to send a reply.
     ///
-    /// This drops the cookie and returns a byte slice of the proxy message struct suitable to be
-    /// sent as a response to the lxc monitor.
-    ///
-    /// The cookie will be inaccessible after this.
-    pub fn as_buf_no_cookie(&mut self) -> &[u8] {
-        self.drop_cookie();
-        &self.buffer[..]
+    /// Returns an io slice covering only the data expected by liblxc. The cookie will be excluded.
+    pub fn io_vec_no_cookie(&mut self) -> [IoVec; 3] {
+        [
+            unsafe { io_vec(&self.proxy_msg) },
+            unsafe { io_vec(&self.seccomp_notif) },
+            unsafe { io_vec(&self.seccomp_resp) },
+        ]
     }
 
     #[inline]
@@ -105,30 +135,44 @@ impl ProxyMessageBuffer {
         resp.flags = 0;
     }
 
-    /// You must call this after writing a new packet to via `new_mut()`. This verifies that there's
-    /// enough data available.
-    ///
-    /// If this returns false, you must not attempt to access the data!
+    /// Called by with_io_slice after the callback returned the new size. This verifies that
+    /// there's enough data available.
     pub fn set_len(&mut self, len: usize) -> Result<(), Error> {
-        if len > self.buffer.capacity() {
-            bail!("seccomp proxy message longer than buffer capacity");
+        if len < self.seccomp_packet_size {
+            bail!("seccomp proxy message too short");
         }
 
-        if !self.validate() {
+        if self.proxy_msg.reserved0 != 0 {
+            bail!("reserved data wasn't 0, liblxc secocmp notify protocol mismatch");
+        }
+
+        if !self.check_sizes() {
             bail!("seccomp proxy message content size validation failed");
         }
 
-        if len != self.seccomp_packet_size + self.cookie_len() {
+        if len - self.seccomp_packet_size > self.cookie_buf.capacity() {
+            bail!("seccomp proxy message too long");
+        }
+
+        let cookie_len = match usize::try_from(self.proxy_msg.cookie_len) {
+            Ok(cl) => cl,
+            Err(_) => {
+                self.proxy_msg.cookie_len = 0;
+                bail!("cookie length exceeds our size type!");
+            }
+        };
+
+        if len != self.seccomp_packet_size + cookie_len {
             bail!(
                 "seccomp proxy packet contains unexpected cookie length {} + {} != {}",
                 self.seccomp_packet_size,
-                self.cookie_len(),
+                cookie_len,
                 len
             );
         }
 
         unsafe {
-            self.buffer.set_len(len);
+            self.cookie_buf.set_len(cookie_len);
         }
 
         self.prepare_response();
@@ -136,93 +180,44 @@ impl ProxyMessageBuffer {
         Ok(())
     }
 
-    fn validate(&self) -> bool {
-        if self.reserved0() != 0 {
-            return false;
-        }
-
-        let got = self.msg().sizes.clone();
+    fn check_sizes(&self) -> bool {
+        let got = self.proxy_msg.sizes.clone();
         got.notif == self.sizes.notif
             && got.notif_resp == self.sizes.notif_resp
             && got.data == self.sizes.data
-    }
-
-    #[inline]
-    fn msg_ptr(&self) -> *const SeccompNotifyProxyMsg {
-        self.buffer.as_ptr() as *const SeccompNotifyProxyMsg
-    }
-
-    #[inline]
-    fn msg(&self) -> &SeccompNotifyProxyMsg {
-        unsafe { &*self.msg_ptr() }
-    }
-
-    #[inline]
-    fn msg_mut_ptr(&mut self) -> *mut SeccompNotifyProxyMsg {
-        self.buffer.as_mut_ptr() as *mut SeccompNotifyProxyMsg
-    }
-
-    #[inline]
-    fn msg_mut(&mut self) -> &mut SeccompNotifyProxyMsg {
-        unsafe { &mut *self.msg_mut_ptr() }
-    }
-
-    fn reserved0(&self) -> u64 {
-        self.msg().reserved0
     }
 
     /// Get the monitor pid from the current message.
     ///
     /// There's no guarantee that the pid is valid.
     pub fn monitor_pid(&self) -> pid_t {
-        self.msg().monitor_pid
+        self.proxy_msg.monitor_pid
     }
 
     /// Get the container's init pid from the current message.
     ///
     /// There's no guarantee that the pid is valid.
     pub fn init_pid(&self) -> pid_t {
-        self.msg().init_pid
+        self.proxy_msg.init_pid
     }
 
     /// Get the syscall request structure of this message.
     pub fn request(&self) -> &SeccompNotif {
-        unsafe {
-            &*(self
-                .buffer
-                .as_ptr()
-                .add(mem::size_of::<SeccompNotifyProxyMsg>()) as *const SeccompNotif)
-        }
+        &self.seccomp_notif
     }
 
     /// Access the response buffer of this message.
     pub fn response_mut(&mut self) -> &mut SeccompNotifResp {
-        unsafe {
-            &mut *(self
-                .buffer
-                .as_mut_ptr()
-                .add(mem::size_of::<SeccompNotifyProxyMsg>())
-                .add(usize::from(self.sizes.notif)) as *mut SeccompNotifResp)
-        }
+        &mut self.seccomp_resp
     }
 
     /// Get the cookie's length.
     pub fn cookie_len(&self) -> usize {
-        usize::try_from(self.msg().cookie_len).expect("cookie size should fit in an usize")
+        usize::try_from(self.proxy_msg.cookie_len).expect("cookie size should fit in an usize")
     }
 
     /// Get the cookie sent along with this message.
     pub fn cookie(&self) -> &[u8] {
-        let len = self.cookie_len();
-        unsafe {
-            let start = self
-                .buffer
-                .as_ptr()
-                .add(mem::size_of::<SeccompNotifyProxyMsg>())
-                .add(usize::from(self.sizes.notif))
-                .add(usize::from(self.sizes.notif_resp));
-
-            std::slice::from_raw_parts(start, len)
-        }
+        &self.cookie_buf
     }
 }
