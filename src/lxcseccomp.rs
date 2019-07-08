@@ -8,6 +8,7 @@ use lazy_static::lazy_static;
 use libc::pid_t;
 
 use crate::seccomp::{SeccompNotif, SeccompNotifResp, SeccompNotifSizes};
+use crate::socket::AsyncSeqPacketSocket;
 use crate::tools::{IoVec, IoVecMut};
 
 /// Seccomp notification proxy message sent by the lxc monitor.
@@ -95,18 +96,18 @@ impl ProxyMessageBuffer {
         }
     }
 
-    /// Resets the buffer capacity and returns an IoVecMut used to fill the buffer.
-    ///
-    /// This vector covers the cookie buffer, but unless `set_len` is used afterwards with the real
-    /// size read into the slice, the cookie will appear empty.
-    pub fn io_vec_mut(&mut self) -> [IoVecMut; 4] {
+    /// Returns None on EOF.
+    pub async fn recv(
+        &mut self,
+        socket: &AsyncSeqPacketSocket,
+    ) -> Result<Option<Vec<crate::tools::Fd>>, Error> {
         self.proxy_msg.cookie_len = 0;
 
         unsafe {
             self.cookie_buf.set_len(self.cookie_buf.capacity());
         }
 
-        let out = [
+        let mut iovec = [
             unsafe { io_vec_mut(&mut self.proxy_msg) },
             unsafe { io_vec_mut(&mut self.seccomp_notif) },
             unsafe { io_vec_mut(&mut self.seccomp_resp) },
@@ -117,18 +118,20 @@ impl ProxyMessageBuffer {
             self.cookie_buf.set_len(0);
         }
 
-        out
+        let (size, fds) = socket.recv_fds_vectored(&mut iovec, 1).await?;
+        self.set_len(size)?;
+
+        Ok(Some(fds))
     }
 
-    /// Prepare to send a reply.
-    ///
-    /// Returns an io slice covering only the data expected by liblxc. The cookie will be excluded.
-    pub fn io_vec_no_cookie(&mut self) -> [IoVec; 3] {
-        [
+    /// Send the current data as response.
+    pub async fn respond(&mut self, socket: &AsyncSeqPacketSocket) -> std::io::Result<()> {
+        let iov = [
             unsafe { io_vec(&self.proxy_msg) },
             unsafe { io_vec(&self.seccomp_notif) },
             unsafe { io_vec(&self.seccomp_resp) },
-        ]
+        ];
+        socket.sendmsg_vectored(&iov).await
     }
 
     #[inline]

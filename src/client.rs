@@ -16,7 +16,7 @@ impl Client {
         Arc::new(Self { socket })
     }
 
-    /// Wrapp futures returning a `Result` so if they fail we `shutdown()` the socket to drop the
+    /// Wrap futures returning a `Result` so if they fail we `shutdown()` the socket to drop the
     /// client.
     async fn wrap_error<F>(self: Arc<Self>, fut: F)
     where
@@ -38,17 +38,13 @@ impl Client {
         loop {
             let mut msg = ProxyMessageBuffer::new(64);
 
-            let (size, mut fds) = {
-                let mut iovec = msg.io_vec_mut();
-                self.socket.recv_fds_vectored(&mut iovec, 1).await?
+            let mut fds = match msg.recv(&self.socket).await? {
+                Some(fds) => fds,
+                None => {
+                    eprintln!("client disconnected");
+                    break Ok(());
+                }
             };
-
-            if size == 0 {
-                eprintln!("client disconnected");
-                break Ok(());
-            }
-
-            msg.set_len(size)?;
 
             let mut fds = fds.drain(..);
             let memory = fds
@@ -90,10 +86,7 @@ impl Client {
             }
         }
 
-        let iovec = msg.io_vec_no_cookie();
-        self.socket.sendmsg_vectored(&iovec).await?;
-
-        Ok(())
+        msg.respond(&self.socket).await.map_err(Error::from)
     }
 
     async fn handle_syscall(
