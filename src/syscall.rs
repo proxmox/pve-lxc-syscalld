@@ -12,12 +12,12 @@ pub enum SyscallStatus {
 }
 
 pub fn get_c_string(msg: &ProxyMessageBuffer, offset: u64) -> Result<CString, Error> {
-    let mut data = unsafe { vec::uninitialized(8) };
+    let mut data = unsafe { vec::uninitialized(4096) };
     let got = msg.mem_fd().read_at(&mut data, offset)?;
 
     let len = unsafe { libc::strnlen(data.as_ptr() as *const _, got) };
     if len >= got {
-        Err(Errno::EINVAL.into())
+        Err(nix::Error::Sys(Errno::EINVAL).into())
     } else {
         unsafe {
             data.set_len(len);

@@ -2,18 +2,20 @@
 
 use std::convert::TryFrom;
 use std::ffi::CString;
+use std::os::raw::c_int;
 use std::os::unix::fs::FileExt;
-use std::os::unix::io::{FromRawFd, IntoRawFd};
+use std::os::unix::io::{FromRawFd, IntoRawFd, RawFd};
 use std::{io, mem};
 
 use failure::{bail, Error};
 use lazy_static::lazy_static;
 use libc::pid_t;
+use nix::errno::Errno;
 
 use crate::pidfd::PidFd;
 use crate::seccomp::{SeccompNotif, SeccompNotifResp, SeccompNotifSizes};
 use crate::socket::AsyncSeqPacketSocket;
-use crate::tools::{IoVec, IoVecMut};
+use crate::tools::{Fd, IoVec, IoVecMut};
 
 /// Seccomp notification proxy message sent by the lxc monitor.
 ///
@@ -274,8 +276,9 @@ impl ProxyMessageBuffer {
         &self.cookie_buf
     }
 
+    /// Shortcut to get a parameter value.
     #[inline]
-    fn checked_arg(&self, arg: u32) -> nix::Result<u64> {
+    fn arg(&self, arg: u32) -> Result<u64, Error> {
         self.request()
             .data
             .args
@@ -288,6 +291,31 @@ impl ProxyMessageBuffer {
     ///
     /// Strings are limited to 4k bytes currently.
     pub fn arg_c_string(&self, arg: u32) -> Result<CString, Error> {
-        crate::syscall::get_c_string(self, self.checked_arg(arg)?)
+        crate::syscall::get_c_string(self, self.arg(arg)?)
+    }
+
+    /// Checked way to get a `mode_t` argument.
+    pub fn arg_mode_t(&self, arg: u32) -> Result<nix::sys::stat::Mode, Error> {
+        use nix::sys::stat;
+
+        stat::Mode::from_bits(
+            stat::mode_t::try_from(self.arg(arg)?).map_err(|_| Error::from(Errno::EINVAL))?,
+        )
+        .ok_or_else(|| Errno::EINVAL.into())
+    }
+
+    /// Checked way to get a `dev_t` argument.
+    pub fn arg_dev_t(&self, arg: u32) -> Result<nix::sys::stat::dev_t, Error> {
+        nix::sys::stat::dev_t::try_from(self.arg(arg)?).map_err(|_| Errno::EINVAL.into())
+    }
+
+    /// Checked way to get a file descriptor argument.
+    pub fn arg_fd(&self, arg: u32, flags: c_int) -> Result<Fd, Error> {
+        let fd = RawFd::try_from(self.arg(arg)?).map_err(|_| Error::from(Errno::EINVAL))?;
+        if fd == libc::AT_FDCWD {
+            Ok(self.pid_fd().fd_cwd()?)
+        } else {
+            Ok(self.pid_fd().fd_num(fd, flags)?)
+        }
     }
 }
