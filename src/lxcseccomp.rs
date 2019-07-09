@@ -295,13 +295,8 @@ impl ProxyMessageBuffer {
     }
 
     /// Checked way to get a `mode_t` argument.
-    pub fn arg_mode_t(&self, arg: u32) -> Result<nix::sys::stat::Mode, Error> {
-        use nix::sys::stat;
-
-        stat::Mode::from_bits(
-            stat::mode_t::try_from(self.arg(arg)?).map_err(|_| Error::from(Errno::EINVAL))?,
-        )
-        .ok_or_else(|| Errno::EINVAL.into())
+    pub fn arg_mode_t(&self, arg: u32) -> Result<nix::sys::stat::mode_t, Error> {
+        nix::sys::stat::mode_t::try_from(self.arg(arg)?).map_err(|_| Error::from(Errno::EINVAL))
     }
 
     /// Checked way to get a `dev_t` argument.

@@ -30,8 +30,10 @@ macro_rules! file_descriptor_impl {
     ($type:ty) => {
         impl Drop for $type {
             fn drop(&mut self) {
-                unsafe {
-                    libc::close(self.0);
+                if self.0 >= 0 {
+                    unsafe {
+                        libc::close(self.0);
+                    }
                 }
             }
         }

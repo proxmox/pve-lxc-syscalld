@@ -44,10 +44,10 @@ impl PidFd {
     }
 
     pub fn fd_cwd(&self) -> io::Result<Fd> {
-        self.fd(b"cwd", libc::O_DIRECTORY)
+        self.fd(b"cwd\0", libc::O_DIRECTORY)
     }
 
     pub fn fd_num(&self, num: RawFd, flags: c_int) -> io::Result<Fd> {
-        self.fd(format!("fd/{}", num).as_bytes(), flags)
+        self.fd(format!("fd/{}\0", num).as_bytes(), flags)
     }
 }

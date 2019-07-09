@@ -11,8 +11,8 @@ use std::panic::UnwindSafe;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 
-use futures::future::poll_fn;
 use futures::io::AsyncRead;
+use nix::errno::Errno;
 
 use crate::syscall::SyscallStatus;
 use crate::tools::Fd;
@@ -20,16 +20,12 @@ use crate::{libc_try, libc_wrap};
 
 pub async fn forking_syscall<F>(func: F) -> io::Result<SyscallStatus>
 where
-    F: FnOnce() -> io::Result<SyscallStatus> + UnwindSafe,
+    F: FnOnce() -> Result<i64, Errno> + UnwindSafe,
 {
     let mut fork = Fork::new(func)?;
-    let mut buf = [0u8; 10];
-
-    use futures::io::AsyncReadExt;
-    fork.read_exact(&mut buf).await?;
+    let result = fork.get_result().await?;
     fork.wait()?;
-
-    Ok(SyscallStatus::Err(libc::ENOENT))
+    Ok(result)
 }
 
 pub struct Fork {
@@ -47,19 +43,20 @@ impl Drop for Fork {
     }
 }
 
+#[repr(C, packed)]
+struct Data {
+    val: i64,
+    error: i32,
+}
+
 impl Fork {
     pub fn new<F>(func: F) -> io::Result<Self>
     where
-        F: FnOnce() -> io::Result<SyscallStatus> + UnwindSafe,
+        F: FnOnce() -> Result<i64, Errno> + UnwindSafe,
     {
         let mut pipe: [c_int; 2] = [0, 0];
         libc_try!(unsafe { libc::pipe2(pipe.as_mut_ptr(), libc::O_CLOEXEC | libc::O_NONBLOCK) });
         let (pipe_r, pipe_w) = (Fd(pipe[0]), Fd(pipe[1]));
-
-        let pipe_r = match crate::tools::GenericStream::from_fd(pipe_r) {
-            Ok(o) => o,
-            Err(err) => return Err(io::Error::new(io::ErrorKind::Other, err.to_string())),
-        };
 
         let pid = libc_try!(unsafe { libc::fork() });
         if pid == 0 {
@@ -67,33 +64,26 @@ impl Fork {
             let mut pipe_w = unsafe { std::fs::File::from_raw_fd(pipe_w.into_raw_fd()) };
 
             let _ = std::panic::catch_unwind(move || {
-                let mut buf = [0u8; 10];
+                let out = match func() {
+                    Ok(val) => Data {
+                        val,
+                        error: 0,
+                    },
+                    Err(error) => Data {
+                        val: -1,
+                        error: error as _,
+                    },
+                };
 
-                match func() {
-                    Ok(SyscallStatus::Ok(value)) => unsafe {
-                        std::ptr::write(buf.as_mut_ptr().add(1) as *mut i64, value);
-                    },
-                    Ok(SyscallStatus::Err(value)) => {
-                        buf[0] = 1;
-                        unsafe {
-                            std::ptr::write(buf.as_mut_ptr().add(1) as *mut i32, value);
-                        }
-                    }
-                    Err(err) => match err.raw_os_error() {
-                        Some(err) => {
-                            buf[0] = 2;
-                            unsafe {
-                                std::ptr::write(buf.as_mut_ptr().add(1) as *mut i32, err);
-                            }
-                        }
-                        None => {
-                            buf[0] = 3;
-                        }
-                    },
-                }
+                let slice = unsafe {
+                    std::slice::from_raw_parts(
+                        &out as *const Data as *const u8,
+                        std::mem::size_of::<Data>(),
+                    )
+                };
 
                 use std::io::Write;
-                match pipe_w.write_all(&buf) {
+                match pipe_w.write_all(slice) {
                     Ok(()) => unsafe { libc::_exit(0) },
                     Err(_) => unsafe { libc::_exit(1) },
                 }
@@ -103,6 +93,11 @@ impl Fork {
             }
         }
 
+        let pipe_r = match crate::tools::GenericStream::from_fd(pipe_r) {
+            Ok(o) => o,
+            Err(err) => return Err(io::Error::new(io::ErrorKind::Other, err.to_string())),
+        };
+
         Ok(Self {
             pid: Some(pid),
             out: pipe_r,
@@ -111,9 +106,9 @@ impl Fork {
 
     pub fn wait(&mut self) -> io::Result<()> {
         let my_pid = self.pid.take().unwrap();
+        let mut status: c_int = -1;
 
         loop {
-            let mut status: c_int = -1;
             match libc_wrap!(unsafe { libc::waitpid(my_pid, &mut status, 0) }) {
                 Ok(pid) if pid == my_pid => break,
                 Ok(_other) => continue,
@@ -122,11 +117,28 @@ impl Fork {
             }
         }
 
-        Ok(())
+        if status != 0 {
+            Err(io::Error::new(io::ErrorKind::Other, "error in child process"))
+        } else {
+            Ok(())
+        }
     }
 
-    pub async fn async_read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        poll_fn(|cx| Pin::new(&mut *self).poll_read(cx, buf)).await
+    pub async fn get_result(&mut self) -> io::Result<SyscallStatus> {
+        use futures::io::AsyncReadExt;
+
+        let mut data: Data = unsafe { std::mem::zeroed() };
+        self.read_exact(unsafe {
+            std::slice::from_raw_parts_mut(
+                &mut data as *mut Data as *mut u8,
+                std::mem::size_of::<Data>(),
+            )
+        }).await?;
+        if data.error == 0 {
+            Ok(SyscallStatus::Ok(data.val))
+        } else {
+            Ok(SyscallStatus::Err(data.error))
+        }
     }
 }
 

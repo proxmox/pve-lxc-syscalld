@@ -4,6 +4,7 @@ use failure::Error;
 use nix::errno::Errno;
 use nix::sys::stat;
 
+use crate::fork::forking_syscall;
 use crate::lxcseccomp::ProxyMessageBuffer;
 use crate::syscall::SyscallStatus;
 use crate::tools::Fd;
@@ -27,9 +28,11 @@ pub async fn mknodat(msg: &ProxyMessageBuffer) -> Result<SyscallStatus, Error> {
 async fn do_mknodat(
     _dirfd: Fd,
     _pathname: CString,
-    _mode: stat::Mode,
+    _mode: stat::mode_t,
     _dev: stat::dev_t,
 ) -> Result<SyscallStatus, Error> {
     println!("=> Responding with ENOENT");
-    Err(Errno::ENOENT.into())
+    Ok(forking_syscall(move || {
+        Err(Errno::ENOENT)
+    }).await?)
 }
