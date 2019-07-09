@@ -188,9 +188,9 @@ impl ProxyMessageBuffer {
         resp.flags = 0;
     }
 
-    /// Called by with_io_slice after the callback returned the new size. This verifies that
-    /// there's enough data available.
-    pub fn set_len(&mut self, len: usize) -> Result<(), Error> {
+    /// Called by recv() after the callback returned the new size. This verifies that there's
+    /// enough data available.
+    fn set_len(&mut self, len: usize) -> Result<(), Error> {
         if len < self.seccomp_packet_size {
             bail!("seccomp proxy message too short");
         }
