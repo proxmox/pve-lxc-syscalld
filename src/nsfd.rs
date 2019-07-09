@@ -3,7 +3,6 @@ use std::io;
 use std::marker::PhantomData;
 use std::os::raw::c_int;
 use std::os::unix::io::{AsRawFd, FromRawFd, IntoRawFd, RawFd};
-use std::path::Path;
 
 use crate::{file_descriptor_type, libc_try};
 

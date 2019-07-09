@@ -12,7 +12,6 @@ use std::pin::Pin;
 use std::task::{Context, Poll};
 
 use futures::io::AsyncRead;
-use nix::errno::Errno;
 
 use crate::syscall::SyscallStatus;
 use crate::tools::Fd;

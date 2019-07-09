@@ -62,7 +62,6 @@ impl SeqPacketSocket {
                     std::slice::from_raw_parts(libc::CMSG_DATA(cmsg_ptr) as *const RawFd, num_fds)
                 };
                 for fd in fds {
-                    println!("Received fd: {}", *fd);
                     out_fds.push(Fd(*fd));
                 }
                 break;

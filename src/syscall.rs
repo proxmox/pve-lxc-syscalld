@@ -26,3 +26,15 @@ pub fn get_c_string(msg: &ProxyMessageBuffer, offset: u64) -> Result<CString, Er
         Ok(CString::new(data).unwrap())
     }
 }
+
+#[macro_export]
+macro_rules! sc_libc_try {
+    ($expr:expr) => {{
+        let res = $expr;
+        if res == -1 {
+            return Ok($crate::syscall::SyscallStatus::Err(::nix::errno::errno() as _))
+        } else {
+            res
+        }
+    }};
+}

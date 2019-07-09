@@ -9,7 +9,6 @@ use std::os::unix::io::{AsRawFd, FromRawFd, IntoRawFd, RawFd};
 use std::pin::Pin;
 use std::task::{Context, Poll};
 
-use failure::{bail, Error};
 use futures::io::{AsyncRead, AsyncWrite};
 use futures::ready;
 use mio::unix::EventedFd;
@@ -108,10 +107,13 @@ impl Drop for AsyncFd {
 }
 
 impl AsyncFd {
-    pub fn new(fd: Fd) -> Result<Self, Error> {
+    pub fn new(fd: Fd) -> io::Result<Self> {
         let registration = tokio::reactor::Registration::new();
         if !registration.register(&fd)? {
-            bail!("duplicate file descriptor registration?");
+            return Err(io::Error::new(
+                io::ErrorKind::Other, 
+                "duplicate file descriptor registration?",
+            ));
         }
 
         Ok(Self { fd, registration })
@@ -136,7 +138,7 @@ impl AsRawFd for AsyncFd {
 pub struct GenericStream(Option<AsyncFd>);
 
 impl GenericStream {
-    pub fn from_fd(fd: Fd) -> Result<Self, Error> {
+    pub fn from_fd(fd: Fd) -> io::Result<Self> {
         AsyncFd::new(fd).map(|fd| Self(Some(fd)))
     }
 
@@ -281,9 +283,9 @@ macro_rules! libc_wrap {
     ($expr:expr) => {{
         let res = $expr;
         if res == -1 {
-            Err(io::Error::last_os_error())
+            Err(::std::io::Error::last_os_error())
         } else {
-            Ok::<_, io::Error>(res)
+            Ok::<_, ::std::io::Error>(res)
         }
     }};
 }
@@ -293,7 +295,7 @@ macro_rules! libc_try {
     ($expr:expr) => {{
         let res = $expr;
         if res == -1 {
-            return Err(io::Error::last_os_error());
+            return Err(::std::io::Error::last_os_error());
         } else {
             res
         }
