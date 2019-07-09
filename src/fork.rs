@@ -14,8 +14,8 @@ use std::task::{Context, Poll};
 use futures::future::poll_fn;
 use futures::io::AsyncRead;
 
+use crate::syscall::SyscallStatus;
 use crate::tools::Fd;
-use crate::SyscallStatus;
 use crate::{libc_try, libc_wrap};
 
 pub async fn forking_syscall<F>(func: F) -> io::Result<SyscallStatus>
@@ -124,7 +124,6 @@ impl Fork {
 
         Ok(())
     }
-
 
     pub async fn async_read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         poll_fn(|cx| Pin::new(&mut *self).poll_read(cx, buf)).await

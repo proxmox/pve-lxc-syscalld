@@ -1,15 +1,19 @@
 //! Module for LXC specific related seccomp handling.
 
 use std::convert::TryFrom;
-use std::mem;
+use std::ffi::CString;
+use std::os::unix::fs::FileExt;
+use std::os::unix::io::{FromRawFd, IntoRawFd};
+use std::{io, mem};
 
 use failure::{bail, Error};
 use lazy_static::lazy_static;
 use libc::pid_t;
 
+use crate::pidfd::PidFd;
 use crate::seccomp::{SeccompNotif, SeccompNotifResp, SeccompNotifSizes};
 use crate::socket::AsyncSeqPacketSocket;
-use crate::tools::{Fd, IoVec, IoVecMut};
+use crate::tools::{IoVec, IoVecMut};
 
 /// Seccomp notification proxy message sent by the lxc monitor.
 ///
@@ -56,8 +60,8 @@ pub struct ProxyMessageBuffer {
     sizes: SeccompNotifSizes,
     seccomp_packet_size: usize,
 
-    pid_fd: Option<Fd>,
-    mem_fd: Option<Fd>,
+    pid_fd: Option<PidFd>,
+    mem_fd: Option<std::fs::File>,
 }
 
 unsafe fn io_vec_mut<T>(value: &mut T) -> IoVecMut {
@@ -102,10 +106,7 @@ impl ProxyMessageBuffer {
     }
 
     /// Returns None on EOF.
-    pub async fn recv(
-        &mut self,
-        socket: &AsyncSeqPacketSocket,
-    ) -> Result<bool, Error> {
+    pub async fn recv(&mut self, socket: &AsyncSeqPacketSocket) -> Result<bool, Error> {
         self.proxy_msg.cookie_len = 0;
 
         unsafe {
@@ -131,8 +132,12 @@ impl ProxyMessageBuffer {
         self.set_len(size)?;
 
         let mut fds = fds.into_iter();
-        self.pid_fd = fds.next();
-        self.mem_fd = fds.next();
+        self.pid_fd = fds
+            .next()
+            .map(|fd| unsafe { PidFd::from_raw_fd(fd.into_raw_fd()) });
+        self.mem_fd = fds
+            .next()
+            .map(|fd| unsafe { std::fs::File::from_raw_fd(fd.into_raw_fd()) });
         if self.mem_fd.is_none() {
             self.drop_fds();
             bail!("missing file descriptors with proxied seccomp message");
@@ -141,13 +146,30 @@ impl ProxyMessageBuffer {
         Ok(true)
     }
 
+    /// Get the process' pidfd.
+    ///
+    /// Note that the message must be valid, otherwise this panics!
+    pub fn pid_fd(&self) -> &PidFd {
+        self.pid_fd.as_ref().unwrap()
+    }
+
+    /// Get the process' mem fd.
+    ///
+    /// Note that this returns a non-mut trait object. This is because positional I/O does not need
+    /// mutable self and the standard library correctly represents this in its `FileExt` trait!
+    ///
+    /// Note that the message must be valid, otherwise this panics!
+    pub fn mem_fd(&self) -> &dyn FileExt {
+        self.mem_fd.as_ref().unwrap()
+    }
+
     pub fn drop_fds(&mut self) {
         self.pid_fd = None;
         self.mem_fd = None;
     }
 
     /// Send the current data as response.
-    pub async fn respond(&mut self, socket: &AsyncSeqPacketSocket) -> std::io::Result<()> {
+    pub async fn respond(&mut self, socket: &AsyncSeqPacketSocket) -> io::Result<()> {
         let iov = [
             unsafe { io_vec(&self.proxy_msg) },
             unsafe { io_vec(&self.seccomp_notif) },
@@ -250,5 +272,22 @@ impl ProxyMessageBuffer {
     /// Get the cookie sent along with this message.
     pub fn cookie(&self) -> &[u8] {
         &self.cookie_buf
+    }
+
+    #[inline]
+    fn checked_arg(&self, arg: u32) -> nix::Result<u64> {
+        self.request()
+            .data
+            .args
+            .get(arg as usize)
+            .map(|x| *x)
+            .ok_or_else(|| nix::errno::Errno::ERANGE.into())
+    }
+
+    /// Get a parameter as C String.
+    ///
+    /// Strings are limited to 4k bytes currently.
+    pub fn arg_c_string(&self, arg: u32) -> Result<CString, Error> {
+        crate::syscall::get_c_string(self, self.checked_arg(arg)?)
     }
 }

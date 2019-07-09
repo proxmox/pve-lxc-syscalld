@@ -4,7 +4,7 @@ use failure::Error;
 
 use crate::lxcseccomp::ProxyMessageBuffer;
 use crate::socket::AsyncSeqPacketSocket;
-use crate::SyscallStatus;
+use crate::syscall::SyscallStatus;
 
 pub struct Client {
     socket: AsyncSeqPacketSocket,
@@ -44,19 +44,30 @@ impl Client {
 
             // Note: our spawned tasks here must not access our socket, as we cannot guarantee
             // they'll be woken up if another task errors into `wrap_error()`.
-            tokio::spawn(
-                self.clone()
-                    .wrap_error(self.clone().__handle_syscall(msg)),
-            );
+            tokio::spawn(self.clone().wrap_error(self.clone().__handle_syscall(msg)));
         }
     }
 
     // Note: we must not use the socket for anything other than sending the result!
-    async fn __handle_syscall(
-        self: Arc<Self>,
-        mut msg: ProxyMessageBuffer,
-    ) -> Result<(), Error> {
-        let result = Self::handle_syscall(&msg).await?;
+    async fn __handle_syscall(self: Arc<Self>, mut msg: ProxyMessageBuffer) -> Result<(), Error> {
+        let result = match Self::handle_syscall(&msg).await {
+            Ok(r) => r,
+            Err(err) => {
+                if let Some(errno) = err.downcast_ref::<nix::errno::Errno>() {
+                    SyscallStatus::Err(*errno as _)
+                } else if let Some(nix::Error::Sys(errno)) = err.downcast_ref::<nix::Error>() {
+                    SyscallStatus::Err(*errno as _)
+                } else if let Some(ioerr) = err.downcast_ref::<std::io::Error>() {
+                    if let Some(errno) = ioerr.raw_os_error() {
+                        SyscallStatus::Err(errno)
+                    } else {
+                        return Err(err);
+                    }
+                } else {
+                    return Err(err);
+                }
+            }
+        };
 
         let resp = msg.response_mut();
         match result {
@@ -73,9 +84,7 @@ impl Client {
         msg.respond(&self.socket).await.map_err(Error::from)
     }
 
-    async fn handle_syscall(
-        msg: &ProxyMessageBuffer,
-    ) -> Result<SyscallStatus, Error> {
+    async fn handle_syscall(msg: &ProxyMessageBuffer) -> Result<SyscallStatus, Error> {
         match msg.request().data.nr as i64 {
             libc::SYS_mknod => crate::sys_mknod::mknod(msg).await,
             libc::SYS_mknodat => crate::sys_mknod::mknodat(msg).await,

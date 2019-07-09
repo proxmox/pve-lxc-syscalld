@@ -14,14 +14,10 @@ pub mod pidfd;
 pub mod seccomp;
 pub mod socket;
 pub mod sys_mknod;
+pub mod syscall;
 pub mod tools;
 
 use socket::SeqPacketListener;
-
-pub enum SyscallStatus {
-    Ok(i64),
-    Err(i32),
-}
 
 fn main() {
     if let Err(err) = run() {
