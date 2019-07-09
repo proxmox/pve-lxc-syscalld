@@ -23,11 +23,6 @@ pub enum SyscallStatus {
     Err(i32),
 }
 
-pub struct SyscallMeta {
-    //pid: pidfd::PidFd,
-    memory: std::fs::File,
-}
-
 fn main() {
     if let Err(err) = run() {
         eprintln!("error: {}", err);

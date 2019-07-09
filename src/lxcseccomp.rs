@@ -9,7 +9,7 @@ use libc::pid_t;
 
 use crate::seccomp::{SeccompNotif, SeccompNotifResp, SeccompNotifSizes};
 use crate::socket::AsyncSeqPacketSocket;
-use crate::tools::{IoVec, IoVecMut};
+use crate::tools::{Fd, IoVec, IoVecMut};
 
 /// Seccomp notification proxy message sent by the lxc monitor.
 ///
@@ -55,6 +55,9 @@ pub struct ProxyMessageBuffer {
 
     sizes: SeccompNotifSizes,
     seccomp_packet_size: usize,
+
+    pid_fd: Option<Fd>,
+    mem_fd: Option<Fd>,
 }
 
 unsafe fn io_vec_mut<T>(value: &mut T) -> IoVecMut {
@@ -93,6 +96,8 @@ impl ProxyMessageBuffer {
             cookie_buf: unsafe { super::tools::vec::uninitialized(max_cookie) },
             sizes,
             seccomp_packet_size,
+            pid_fd: None,
+            mem_fd: None,
         }
     }
 
@@ -100,7 +105,7 @@ impl ProxyMessageBuffer {
     pub async fn recv(
         &mut self,
         socket: &AsyncSeqPacketSocket,
-    ) -> Result<Option<Vec<crate::tools::Fd>>, Error> {
+    ) -> Result<bool, Error> {
         self.proxy_msg.cookie_len = 0;
 
         unsafe {
@@ -118,10 +123,27 @@ impl ProxyMessageBuffer {
             self.cookie_buf.set_len(0);
         }
 
-        let (size, fds) = socket.recv_fds_vectored(&mut iovec, 1).await?;
+        let (size, fds) = socket.recv_fds_vectored(&mut iovec, 2).await?;
+        if size == 0 {
+            return Ok(false);
+        }
+
         self.set_len(size)?;
 
-        Ok(Some(fds))
+        let mut fds = fds.into_iter();
+        self.pid_fd = fds.next();
+        self.mem_fd = fds.next();
+        if self.mem_fd.is_none() {
+            self.drop_fds();
+            bail!("missing file descriptors with proxied seccomp message");
+        }
+
+        Ok(true)
+    }
+
+    pub fn drop_fds(&mut self) {
+        self.pid_fd = None;
+        self.mem_fd = None;
     }
 
     /// Send the current data as response.
