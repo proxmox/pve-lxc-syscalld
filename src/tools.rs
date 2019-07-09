@@ -299,9 +299,3 @@ macro_rules! libc_try {
         }
     }};
 }
-
-pub fn path_ptr(path: &std::path::Path) -> *const libc::c_char {
-    use std::os::unix::ffi::OsStrExt;
-
-    path.as_os_str().as_bytes().as_ptr() as *const libc::c_char
-}

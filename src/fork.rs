@@ -20,7 +20,7 @@ use crate::{libc_try, libc_wrap};
 
 pub async fn forking_syscall<F>(func: F) -> io::Result<SyscallStatus>
 where
-    F: FnOnce() -> Result<i64, Errno> + UnwindSafe,
+    F: FnOnce() -> io::Result<SyscallStatus> + UnwindSafe,
 {
     let mut fork = Fork::new(func)?;
     let result = fork.get_result().await?;
@@ -47,12 +47,13 @@ impl Drop for Fork {
 struct Data {
     val: i64,
     error: i32,
+    failure: i32,
 }
 
 impl Fork {
     pub fn new<F>(func: F) -> io::Result<Self>
     where
-        F: FnOnce() -> Result<i64, Errno> + UnwindSafe,
+        F: FnOnce() -> io::Result<SyscallStatus> + UnwindSafe,
     {
         let mut pipe: [c_int; 2] = [0, 0];
         libc_try!(unsafe { libc::pipe2(pipe.as_mut_ptr(), libc::O_CLOEXEC | libc::O_NONBLOCK) });
@@ -65,13 +66,20 @@ impl Fork {
 
             let _ = std::panic::catch_unwind(move || {
                 let out = match func() {
-                    Ok(val) => Data {
+                    Ok(SyscallStatus::Ok(val)) => Data {
                         val,
                         error: 0,
+                        failure: 0,
                     },
-                    Err(error) => Data {
+                    Ok(SyscallStatus::Err(error)) => Data {
                         val: -1,
                         error: error as _,
+                        failure: 0,
+                    },
+                    Err(err) => Data {
+                        val: -1,
+                        error: -1,
+                        failure: err.raw_os_error().unwrap_or(libc::EFAULT),
                     },
                 };
 
@@ -118,7 +126,10 @@ impl Fork {
         }
 
         if status != 0 {
-            Err(io::Error::new(io::ErrorKind::Other, "error in child process"))
+            Err(io::Error::new(
+                io::ErrorKind::Other,
+                "error in child process",
+            ))
         } else {
             Ok(())
         }
@@ -133,8 +144,11 @@ impl Fork {
                 &mut data as *mut Data as *mut u8,
                 std::mem::size_of::<Data>(),
             )
-        }).await?;
-        if data.error == 0 {
+        })
+        .await?;
+        if data.failure != 0 {
+            Err(io::Error::from_raw_os_error(data.failure))
+        } else if data.error == 0 {
             Ok(SyscallStatus::Ok(data.val))
         } else {
             Ok(SyscallStatus::Err(data.error))

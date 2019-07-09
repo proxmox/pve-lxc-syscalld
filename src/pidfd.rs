@@ -1,6 +1,6 @@
 //! pidfd helper functionality
 
-use std::ffi::CString;
+use std::ffi::{CStr, CString};
 use std::io;
 use std::os::raw::c_int;
 use std::os::unix::io::{AsRawFd, FromRawFd, IntoRawFd, RawFd};
@@ -22,15 +22,21 @@ impl PidFd {
     }
 
     pub fn mount_namespace(&self) -> io::Result<NsFd<ns_type::Mount>> {
-        NsFd::openat(self.0, "ns/mnt")
+        NsFd::openat(self.0, unsafe {
+            CStr::from_bytes_with_nul_unchecked(b"ns/mnt\0")
+        })
     }
 
     pub fn cgroup_namespace(&self) -> io::Result<NsFd<ns_type::Cgroup>> {
-        NsFd::openat(self.0, "ns/cgroup")
+        NsFd::openat(self.0, unsafe {
+            CStr::from_bytes_with_nul_unchecked(b"ns/cgroup\0")
+        })
     }
 
     pub fn user_namespace(&self) -> io::Result<NsFd<ns_type::User>> {
-        NsFd::openat(self.0, "ns/user")
+        NsFd::openat(self.0, unsafe {
+            CStr::from_bytes_with_nul_unchecked(b"ns/user\0")
+        })
     }
 
     fn fd(&self, path: &[u8], flags: c_int) -> io::Result<Fd> {
@@ -50,4 +56,10 @@ impl PidFd {
     pub fn fd_num(&self, num: RawFd, flags: c_int) -> io::Result<Fd> {
         self.fd(format!("fd/{}\0", num).as_bytes(), flags)
     }
+
+    //pub fn dup(&self) -> io::Result<Self> {
+    //    Ok(Self(libc_try!(unsafe {
+    //        libc::fcntl(self.as_raw_fd(), libc::F_DUPFD_CLOEXEC, 0)
+    //    })))
+    //}
 }

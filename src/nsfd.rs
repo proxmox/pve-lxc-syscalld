@@ -1,10 +1,10 @@
+use std::ffi::CStr;
 use std::io;
 use std::marker::PhantomData;
 use std::os::raw::c_int;
 use std::os::unix::io::{AsRawFd, FromRawFd, IntoRawFd, RawFd};
 use std::path::Path;
 
-use crate::tools::path_ptr;
 use crate::{file_descriptor_type, libc_try};
 
 pub mod ns_type {
@@ -31,18 +31,13 @@ pub use ns_type::NsType;
 file_descriptor_type!(RawNsFd);
 
 impl RawNsFd {
-    pub fn open<P: AsRef<Path>>(path: P) -> io::Result<Self> {
-        Self::openat(libc::AT_FDCWD, path.as_ref())
+    pub fn open(path: &CStr) -> io::Result<Self> {
+        Self::openat(libc::AT_FDCWD, path)
     }
 
-    pub fn openat<P: AsRef<Path>>(fd: RawFd, path: P) -> io::Result<Self> {
-        let fd = libc_try!(unsafe {
-            libc::openat(
-                fd,
-                path_ptr(path.as_ref()),
-                libc::O_RDONLY | libc::O_CLOEXEC,
-            )
-        });
+    pub fn openat(fd: RawFd, path: &CStr) -> io::Result<Self> {
+        let fd =
+            libc_try!(unsafe { libc::openat(fd, path.as_ptr(), libc::O_RDONLY | libc::O_CLOEXEC) });
 
         Ok(Self(fd))
     }
@@ -65,12 +60,12 @@ impl<T: NsType> std::ops::Deref for NsFd<T> {
 }
 
 impl<T: NsType> NsFd<T> {
-    pub fn open<P: AsRef<Path>>(path: P) -> io::Result<Self> {
-        Ok(Self(RawNsFd::open(path.as_ref())?, PhantomData))
+    pub fn open(path: &CStr) -> io::Result<Self> {
+        Ok(Self(RawNsFd::open(path)?, PhantomData))
     }
 
-    pub fn openat<P: AsRef<Path>>(fd: RawFd, path: P) -> io::Result<Self> {
-        Ok(Self(RawNsFd::openat(fd, path.as_ref())?, PhantomData))
+    pub fn openat(fd: RawFd, path: &CStr) -> io::Result<Self> {
+        Ok(Self(RawNsFd::openat(fd, path)?, PhantomData))
     }
 
     pub fn setns(&self) -> io::Result<()> {
