@@ -21,6 +21,12 @@ macro_rules! file_descriptor_type {
         pub struct $type(RawFd);
 
         crate::file_descriptor_impl!($type);
+
+        impl FromRawFd for $type {
+            unsafe fn from_raw_fd(fd: RawFd) -> Self {
+                Self(fd)
+            }
+        }
     };
 }
 
@@ -50,12 +56,6 @@ macro_rules! file_descriptor_impl {
                 fd
             }
         }
-
-        impl FromRawFd for $type {
-            unsafe fn from_raw_fd(fd: RawFd) -> Self {
-                Self(fd)
-            }
-        }
     };
 }
 
@@ -66,6 +66,12 @@ macro_rules! file_descriptor_impl {
 pub struct Fd(pub RawFd);
 
 file_descriptor_impl!(Fd);
+
+impl FromRawFd for Fd {
+    unsafe fn from_raw_fd(fd: RawFd) -> Self {
+        Self(fd)
+    }
+}
 
 impl mio::Evented for Fd {
     fn register(
@@ -111,7 +117,7 @@ impl AsyncFd {
         let registration = tokio::reactor::Registration::new();
         if !registration.register(&fd)? {
             return Err(io::Error::new(
-                io::ErrorKind::Other, 
+                io::ErrorKind::Other,
                 "duplicate file descriptor registration?",
             ));
         }
@@ -300,4 +306,14 @@ macro_rules! libc_try {
             res
         }
     }};
+}
+
+pub trait FromFd {
+    fn from_fd(fd: Fd) -> Self;
+}
+
+impl<T: FromRawFd> FromFd for T {
+    fn from_fd(fd: Fd) -> Self {
+        unsafe { Self::from_raw_fd(fd.into_raw_fd()) }
+    }
 }

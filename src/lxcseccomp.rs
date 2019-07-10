@@ -4,10 +4,10 @@ use std::convert::TryFrom;
 use std::ffi::CString;
 use std::os::raw::c_int;
 use std::os::unix::fs::FileExt;
-use std::os::unix::io::{FromRawFd, IntoRawFd, RawFd};
+use std::os::unix::io::RawFd;
 use std::{io, mem};
 
-use failure::{bail, Error};
+use failure::{bail, format_err, Error};
 use lazy_static::lazy_static;
 use libc::pid_t;
 use nix::errno::Errno;
@@ -15,7 +15,7 @@ use nix::errno::Errno;
 use crate::pidfd::PidFd;
 use crate::seccomp::{SeccompNotif, SeccompNotifResp, SeccompNotifSizes};
 use crate::socket::AsyncSeqPacketSocket;
-use crate::tools::{Fd, IoVec, IoVecMut};
+use crate::tools::{Fd, FromFd, IoVec, IoVecMut};
 
 /// Seccomp notification proxy message sent by the lxc monitor.
 ///
@@ -134,16 +134,18 @@ impl ProxyMessageBuffer {
         self.set_len(size)?;
 
         let mut fds = fds.into_iter();
-        self.pid_fd = fds
+        let pid_fd = unsafe {
+            PidFd::try_from_fd(
+                fds.next()
+                    .ok_or_else(|| format_err!("lxc seccomp message without pidfd"))?,
+            )?
+        };
+        let mem_fd = fds
             .next()
-            .map(|fd| unsafe { PidFd::from_raw_fd(fd.into_raw_fd()) });
-        self.mem_fd = fds
-            .next()
-            .map(|fd| unsafe { std::fs::File::from_raw_fd(fd.into_raw_fd()) });
-        if self.mem_fd.is_none() {
-            self.drop_fds();
-            bail!("missing file descriptors with proxied seccomp message");
-        }
+            .ok_or_else(|| format_err!("lxc seccomp message without memfd"))?;
+
+        self.pid_fd = Some(pid_fd);
+        self.mem_fd = Some(std::fs::File::from_fd(mem_fd));
 
         Ok(true)
     }
