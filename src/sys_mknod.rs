@@ -43,7 +43,16 @@ fn check_mknod_dev(mode: stat::mode_t, dev: stat::dev_t) -> bool {
     let minor = stat::minor(dev);
 
     match (sflag, major, minor) {
-        (libc::S_IFCHR, 1, 3) => true,
+        (libc::S_IFREG, 0, 0) => true, // touch
+        (libc::S_IFCHR, 0, 0) => true, // whiteout
+        (libc::S_IFCHR, 5, 0) => true, // /dev/tty
+        (libc::S_IFCHR, 5, 1) => true, // /dev/console
+        (libc::S_IFCHR, 5, 2) => true, // /dev/ptmx
+        (libc::S_IFCHR, 1, 3) => true, // /dev/null
+        (libc::S_IFCHR, 1, 5) => true, // /dev/zero
+        (libc::S_IFCHR, 1, 7) => true, // /dev/full
+        (libc::S_IFCHR, 1, 8) => true, // /dev/random
+        (libc::S_IFCHR, 1, 9) => true, // /dev/urandom
         _ => false,
     }
 }
