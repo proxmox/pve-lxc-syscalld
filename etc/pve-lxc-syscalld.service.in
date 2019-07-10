@@ -1,0 +1,12 @@
+[Unit]
+Description=Proxmox VE LXC Syscall Daemon
+Before=pve-guests.service
+
+[Service]
+#FIXME!!!
+Type=simple
+ExecStart=%LIBEXECDIR%/pve/pve-lxc-syscalld
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target
