@@ -1,4 +1,5 @@
 use std::ffi::CString;
+use std::os::raw::c_int;
 
 use failure::Error;
 use nix::errno::Errno;
@@ -6,9 +7,54 @@ use nix::errno::Errno;
 use crate::lxcseccomp::ProxyMessageBuffer;
 use crate::tools::vec;
 
+const AUDIT_ARCH_X86_64: u32 = 0xc000003e;
+const AUDIT_ARCH_I386:   u32 = 0x40000003;
+
 pub enum SyscallStatus {
     Ok(i64),
     Err(i32),
+}
+
+pub enum Syscall {
+    Mknod,
+    MknodAt,
+}
+
+pub struct SyscallArch {
+    arch: u32,
+    mknod: i32,
+    mknodat: i32,
+}
+
+const SYSCALL_TABLE: &'static [SyscallArch] = &[
+    SyscallArch {
+        arch: AUDIT_ARCH_X86_64,
+        mknod: 133,
+        mknodat: 259,
+    },
+    SyscallArch {
+        arch: AUDIT_ARCH_I386,
+        mknod: 14,
+        mknodat: 297,
+    },
+];
+
+pub fn translate_syscall(arch: u32, nr: c_int) -> Option<Syscall> {
+    if nr == -1 {
+        // so we don't hit a -1 in SYSCALL_TABLE by accident...
+        return None;
+    }
+
+    for sc in SYSCALL_TABLE {
+        if sc.arch == arch {
+            if nr == sc.mknod {
+                return Some(Syscall::Mknod);
+            } else if nr == sc.mknodat {
+                return Some(Syscall::MknodAt);
+            }
+        }
+    }
+    None
 }
 
 pub fn get_c_string(msg: &ProxyMessageBuffer, offset: u64) -> Result<CString, Error> {
