@@ -107,7 +107,12 @@ impl PidFd {
         )
     }
 
-    pub fn chroot(&self) -> io::Result<()> {
+    pub fn enter_cwd(&self) -> io::Result<()> {
+        libc_try!(unsafe { libc::fchdir(self.fd_cwd()?.as_raw_fd()) });
+        Ok(())
+    }
+
+    pub fn enter_chroot(&self) -> io::Result<()> {
         libc_try!(unsafe { libc::fchdir(self.as_raw_fd()) });
         libc_try!(unsafe { libc::chroot(b"root\0".as_ptr() as *const _) });
         libc_try!(unsafe { libc::chdir(b"/\0".as_ptr() as *const _) });
@@ -343,26 +348,30 @@ impl Capabilities {
 /// permission checks as we can. It is impractical to implement them all manually, so the best
 /// thing to do is cause as many of them to happen on the kernel-side as we can.
 ///
-/// We start by cloning the process' capability set. This is because the process may have dropped
-/// capabilties which under normal conditions would prevent them from executing the syscall.
-/// For example a process may be executing `mknod()` after having dropped `CAP_MKNOD`.
+/// We start by entering the process' devices and v2 cgroup. As calls like `mknod()` may be
+/// affected, and access to devices as well.
 ///
-/// We then switch over our effective and file system uid and gid. This has 2 reasons: First, it
-/// means we do not need to run `chown()` on files we create, secondly, the user may have dropped
+/// Then we must enter the mount namespace, chroot and current working directory, in order to get
+/// the correct view of paths. 
+///
+/// Next we copy the caller's `umask`.
+///
+/// Then switch over our effective and file system uid and gid. This has 2 reasons: First, it means
+/// we do not need to run `chown()` on files we create, secondly, the user may have dropped
 /// `CAP_DAC_OVERRIDE` / `CAP_DAC_READ_SEARCH` which may have prevented the creation of the file in
 /// the first place (for example, the container program may be a non-root executable with
 /// `cap_mknod=ep` as file-capabilities, in which case we do not want a user to be allowed to run
-/// `mknod()` on a path owned by different user. (And checking file system permissions would
+/// `mknod()` on a path owned by different user (and checking file system permissions would
 /// require us to handle ACLs, quotas, which are all file system tyep dependent as well, so better
-/// leave all that up to the kernel, too!)
+/// leave all that up to the kernel, too!)).
 ///
-/// For calls like `mknod()` we also need to make sure we are in the same `devices` cgroup, because
-/// we want its mknod permission to apply.
-///
-/// Finally, the'd like to mirror the caller's umask as well!
+/// Next we clone the process' capability set. This is because the process may have dropped
+/// capabilties which under normal conditions would prevent them from executing the syscall.  For
+/// example a process may be executing `mknod()` after having dropped `CAP_MKNOD`.
 #[derive(Clone)]
 #[must_use = "not using UserCaps may be a security issue"]
-pub struct UserCaps {
+pub struct UserCaps<'a> {
+    pidfd: &'a PidFd,
     euid: libc::uid_t,
     egid: libc::gid_t,
     fsuid: libc::uid_t,
@@ -373,12 +382,13 @@ pub struct UserCaps {
     cgroup_v2: Option<OsString>,
 }
 
-impl UserCaps {
+impl UserCaps<'_> {
     pub fn new(pidfd: &PidFd) -> Result<UserCaps, Error> {
         let status = pidfd.get_status()?;
         let cgroups = pidfd.get_cgroups()?;
 
         Ok(UserCaps {
+            pidfd,
             euid: status.uids.euid,
             egid: status.uids.egid,
             fsuid: status.uids.fsuid,
@@ -390,7 +400,7 @@ impl UserCaps {
         })
     }
 
-    pub fn apply_cgroups(&self) -> io::Result<()> {
+    fn apply_cgroups(&self) -> io::Result<()> {
         fn enter_cgroup(kind: &str, name: &OsStr) -> io::Result<()> {
             let mut path = OsString::with_capacity(15 + kind.len() + name.len() + 13 + 1);
             path.push(OsStr::from_bytes(b"/sys/fs/cgroup/"));
@@ -411,7 +421,7 @@ impl UserCaps {
         Ok(())
     }
 
-    pub fn apply_user_caps(self) -> io::Result<()> {
+    fn apply_user_caps(&self) -> io::Result<()> {
         unsafe {
             libc::umask(self.umask);
         }
@@ -421,6 +431,15 @@ impl UserCaps {
         libc_try!(unsafe { libc::seteuid(self.euid) });
         libc_try!(unsafe { libc::setfsuid(self.fsuid) });
         self.capabilities.capset()?;
+        Ok(())
+    }
+
+    pub fn apply(self) -> io::Result<()> {
+        self.apply_cgroups()?;
+        self.pidfd.mount_namespace()?.setns()?;
+        self.pidfd.enter_chroot()?;
+        self.pidfd.enter_cwd()?;
+        self.apply_user_caps()?;
         Ok(())
     }
 }

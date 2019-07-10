@@ -9,7 +9,7 @@ use crate::lxcseccomp::ProxyMessageBuffer;
 use crate::pidfd::PidFd;
 use crate::syscall::SyscallStatus;
 use crate::tools::Fd;
-use crate::{libc_try, sc_libc_try};
+use crate::sc_libc_try;
 
 pub async fn mknod(msg: &ProxyMessageBuffer) -> Result<SyscallStatus, Error> {
     let mode = msg.arg_mode_t(1)?;
@@ -57,14 +57,8 @@ async fn do_mknodat(
 ) -> Result<SyscallStatus, Error> {
     let caps = pidfd.user_caps()?;
 
-    // FIXME: !!! ALSO COPY THE PROCESS' CAPABILITY SET AND USE KEEP_CAPS!
-
     Ok(forking_syscall(move || {
-        caps.apply_cgroups()?;
-        pidfd.mount_namespace()?.setns()?;
-        pidfd.chroot()?;
-        libc_try!(unsafe { libc::fchdir(dirfd.as_raw_fd()) });
-        caps.apply_user_caps()?;
+        caps.apply()?;
         let out =
             sc_libc_try!(unsafe { libc::mknodat(dirfd.as_raw_fd(), pathname.as_ptr(), mode, dev) });
         Ok(SyscallStatus::Ok(out.into()))
