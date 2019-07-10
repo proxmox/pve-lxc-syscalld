@@ -356,8 +356,10 @@ impl Capabilities {
 /// require us to handle ACLs, quotas, which are all file system tyep dependent as well, so better
 /// leave all that up to the kernel, too!)
 ///
-/// Finally, we also need to make sure we are in the same `devices` cgroup, because it too should
-/// affect calls such as `mknod()`.
+/// For calls like `mknod()` we also need to make sure we are in the same `devices` cgroup, because
+/// we want its mknod permission to apply.
+///
+/// Finally, the'd like to mirror the caller's umask as well!
 #[derive(Clone)]
 #[must_use = "not using UserCaps may be a security issue"]
 pub struct UserCaps {
