@@ -6,4 +6,4 @@
 export BUILD_MODE=release
 
 %:
-	dh $@ --with=systemd
+	dh $@
