@@ -45,6 +45,14 @@ pub struct ProcStatus {
 }
 
 impl PidFd {
+    pub fn current() -> io::Result<Self> {
+        let fd = libc_try!(unsafe {
+            libc::open(b"/proc/self\0".as_ptr() as _, libc::O_DIRECTORY | libc::O_CLOEXEC)
+        });
+
+        Ok(Self(fd, unsafe { libc::getpid() }))
+    }
+
     pub fn open(pid: pid_t) -> io::Result<Self> {
         let path = CString::new(format!("/proc/{}", pid)).unwrap();
 
@@ -260,6 +268,15 @@ impl PidFd {
         Ok(cgroups)
     }
 
+    pub fn read_file(&self, file: &CStr) -> io::Result<Vec<u8>> {
+        use io::Read;
+
+        let mut reader = self.open_file(file, libc::O_RDONLY | libc::O_CLOEXEC, 0)?;
+        let mut out = Vec::new();
+        reader.read_to_end(&mut out)?;
+        Ok(out)
+    }
+
     pub fn user_caps(&self) -> Result<UserCaps, Error> {
         UserCaps::new(self)
     }
@@ -380,12 +397,14 @@ pub struct UserCaps<'a> {
     umask: libc::mode_t,
     cgroup_v1_devices: Option<OsString>,
     cgroup_v2: Option<OsString>,
+    apparmor_profile: Option<OsString>,
 }
 
 impl UserCaps<'_> {
     pub fn new(pidfd: &PidFd) -> Result<UserCaps, Error> {
         let status = pidfd.get_status()?;
         let cgroups = pidfd.get_cgroups()?;
+        let apparmor_profile = crate::apparmor::get_label(pidfd)?;
 
         Ok(UserCaps {
             pidfd,
@@ -397,6 +416,7 @@ impl UserCaps<'_> {
             umask: status.umask,
             cgroup_v1_devices: cgroups.get("devices").map(|s| s.to_owned()),
             cgroup_v2: cgroups.v2().map(|s| s.to_owned()),
+            apparmor_profile,
         })
     }
 
@@ -434,11 +454,14 @@ impl UserCaps<'_> {
         Ok(())
     }
 
-    pub fn apply(self) -> io::Result<()> {
+    pub fn apply(self, own_pidfd: &PidFd) -> io::Result<()> {
         self.apply_cgroups()?;
         self.pidfd.mount_namespace()?.setns()?;
         self.pidfd.enter_chroot()?;
         self.pidfd.enter_cwd()?;
+        if let Some(ref label) = self.apparmor_profile {
+            crate::apparmor::set_label(own_pidfd, label)?;
+        }
         self.apply_user_caps()?;
         Ok(())
     }

@@ -67,7 +67,8 @@ async fn do_mknodat(
     let caps = pidfd.user_caps()?;
 
     Ok(forking_syscall(move || {
-        caps.apply()?;
+        let this = PidFd::current()?;
+        caps.apply(&this)?;
         let out =
             sc_libc_try!(unsafe { libc::mknodat(dirfd.as_raw_fd(), pathname.as_ptr(), mode, dev) });
         Ok(SyscallStatus::Ok(out.into()))
