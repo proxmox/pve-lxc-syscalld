@@ -47,7 +47,10 @@ pub struct ProcStatus {
 impl PidFd {
     pub fn current() -> io::Result<Self> {
         let fd = libc_try!(unsafe {
-            libc::open(b"/proc/self\0".as_ptr() as _, libc::O_DIRECTORY | libc::O_CLOEXEC)
+            libc::open(
+                b"/proc/self\0".as_ptr() as _,
+                libc::O_DIRECTORY | libc::O_CLOEXEC,
+            )
         });
 
         Ok(Self(fd, unsafe { libc::getpid() }))
@@ -369,7 +372,7 @@ impl Capabilities {
 /// affected, and access to devices as well.
 ///
 /// Then we must enter the mount namespace, chroot and current working directory, in order to get
-/// the correct view of paths. 
+/// the correct view of paths.
 ///
 /// Next we copy the caller's `umask`.
 ///

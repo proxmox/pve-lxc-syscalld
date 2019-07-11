@@ -7,9 +7,9 @@ use nix::sys::stat;
 use crate::fork::forking_syscall;
 use crate::lxcseccomp::ProxyMessageBuffer;
 use crate::pidfd::PidFd;
+use crate::sc_libc_try;
 use crate::syscall::SyscallStatus;
 use crate::tools::Fd;
-use crate::sc_libc_try;
 
 pub async fn mknod(msg: &ProxyMessageBuffer) -> Result<SyscallStatus, Error> {
     let mode = msg.arg_mode_t(1)?;

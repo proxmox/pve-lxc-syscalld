@@ -8,7 +8,7 @@ use crate::lxcseccomp::ProxyMessageBuffer;
 use crate::tools::vec;
 
 const AUDIT_ARCH_X86_64: u32 = 0xc000003e;
-const AUDIT_ARCH_I386:   u32 = 0x40000003;
+const AUDIT_ARCH_I386: u32 = 0x40000003;
 
 pub enum SyscallStatus {
     Ok(i64),
