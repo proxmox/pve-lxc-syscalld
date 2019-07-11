@@ -38,7 +38,6 @@ impl Client {
             let mut msg = ProxyMessageBuffer::new(64);
 
             if !msg.recv(&self.socket).await? {
-                eprintln!("client disconnected");
                 break Ok(());
             }
 
