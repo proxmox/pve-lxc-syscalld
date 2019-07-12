@@ -1,9 +1,14 @@
+use std::ffi::CString;
+use std::ptr;
 use std::os::raw::c_int;
 
 use failure::Error;
 use nix::errno::Errno;
 
+use crate::fork::forking_syscall;
 use crate::lxcseccomp::ProxyMessageBuffer;
+use crate::pidfd::PidFd;
+use crate::sc_libc_try;
 use crate::syscall::SyscallStatus;
 
 /*
@@ -44,18 +49,32 @@ use crate::syscall::SyscallStatus;
 const SUBCMDSHIFT: c_int = 8;
 
 pub async fn quotactl(msg: &ProxyMessageBuffer) -> Result<SyscallStatus, Error> {
-    // let _special = msg.arg_opt_c_string(1)?;
+    let cmd = msg.arg_int(0)?;
+    let special = msg.arg_opt_c_string(1)?;
     // let _id = msg.arg_int(2)?;
     // let _addr = msg.arg_caddr_t(3)?;
 
-    let cmd = msg.arg_int(0)?;
-
     match cmd >> SUBCMDSHIFT {
-        libc::Q_QUOTAON => q_quotaon(msg).await,
+        libc::Q_QUOTAON => q_quotaon(msg, cmd, special).await,
         _ => Ok(Errno::ENOSYS.into()),
     }
 }
 
-pub async fn q_quotaon(_msg: &ProxyMessageBuffer) -> Result<SyscallStatus, Error> {
-    Ok(Errno::ENOSYS.into())
+pub async fn q_quotaon(
+    msg: &ProxyMessageBuffer,
+    cmd: c_int,
+    special: Option<CString>,
+) -> Result<SyscallStatus, Error> {
+    let id = msg.arg_int(2)?;
+    let addr = msg.arg_caddr_t(3)?;
+    let special = special.map(|c| c.as_ptr()).unwrap_or(ptr::null());
+
+    let caps = msg.pid_fd().user_caps()?;
+    Ok(forking_syscall(move || {
+        let this = PidFd::current()?;
+        caps.apply(&this)?;
+        let out = sc_libc_try!(unsafe { libc::quotactl(cmd, special, id, addr) });
+        Ok(SyscallStatus::Ok(out.into()))
+    })
+    .await?)
 }

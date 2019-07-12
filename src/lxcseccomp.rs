@@ -247,6 +247,7 @@ impl ProxyMessageBuffer {
     /// Get the monitor pid from the current message.
     ///
     /// There's no guarantee that the pid is valid.
+    #[inline]
     pub fn monitor_pid(&self) -> pid_t {
         self.proxy_msg.monitor_pid
     }
@@ -254,26 +255,31 @@ impl ProxyMessageBuffer {
     /// Get the container's init pid from the current message.
     ///
     /// There's no guarantee that the pid is valid.
+    #[inline]
     pub fn init_pid(&self) -> pid_t {
         self.proxy_msg.init_pid
     }
 
     /// Get the syscall request structure of this message.
+    #[inline]
     pub fn request(&self) -> &SeccompNotif {
         &self.seccomp_notif
     }
 
     /// Access the response buffer of this message.
+    #[inline]
     pub fn response_mut(&mut self) -> &mut SeccompNotifResp {
         &mut self.seccomp_resp
     }
 
     /// Get the cookie's length.
+    #[inline]
     pub fn cookie_len(&self) -> usize {
         usize::try_from(self.proxy_msg.cookie_len).expect("cookie size should fit in an usize")
     }
 
     /// Get the cookie sent along with this message.
+    #[inline]
     pub fn cookie(&self) -> &[u8] {
         &self.cookie_buf
     }
@@ -292,6 +298,7 @@ impl ProxyMessageBuffer {
     /// Get a parameter as C String where the pointer may be `NULL`.
     ///
     /// Strings are limited to 4k bytes currently.
+    #[inline]
     pub fn arg_opt_c_string(&self, arg: u32) -> Result<Option<CString>, Error> {
         let offset = self.arg(arg)?;
         if offset == 0 {
@@ -304,22 +311,26 @@ impl ProxyMessageBuffer {
     /// Get a parameter as C String.
     ///
     /// Strings are limited to 4k bytes currently.
+    #[inline]
     pub fn arg_c_string(&self, arg: u32) -> Result<CString, Error> {
         self.arg_opt_c_string(arg)?
             .ok_or_else(|| Errno::EINVAL.into())
     }
 
     /// Checked way to get a `mode_t` argument.
+    #[inline]
     pub fn arg_mode_t(&self, arg: u32) -> Result<nix::sys::stat::mode_t, Error> {
         nix::sys::stat::mode_t::try_from(self.arg(arg)?).map_err(|_| Error::from(Errno::EINVAL))
     }
 
     /// Checked way to get a `dev_t` argument.
+    #[inline]
     pub fn arg_dev_t(&self, arg: u32) -> Result<nix::sys::stat::dev_t, Error> {
         nix::sys::stat::dev_t::try_from(self.arg(arg)?).map_err(|_| Errno::EINVAL.into())
     }
 
     /// Checked way to get a file descriptor argument.
+    #[inline]
     pub fn arg_fd(&self, arg: u32, flags: c_int) -> Result<Fd, Error> {
         let fd = RawFd::try_from(self.arg(arg)?).map_err(|_| Error::from(Errno::EINVAL))?;
         if fd == libc::AT_FDCWD {
@@ -330,12 +341,26 @@ impl ProxyMessageBuffer {
     }
 
     /// Checked way to get a c_int argument.
+    #[inline]
     pub fn arg_int(&self, arg: u32) -> Result<c_int, Error> {
         c_int::try_from(self.arg(arg)?).map_err(|_| Errno::EINVAL.into())
     }
 
     /// Checked way to get a `caddr_t` argument.
-    pub fn arg_caddr_t(&self, arg: u32) -> Result<usize, Error> {
-        Ok(self.arg(arg)? as usize)
+    #[inline]
+    pub fn arg_caddr_t(&self, arg: u32) -> Result<*mut i8, Error> {
+        Ok(self.arg(arg)? as *mut i8)
+    }
+
+    /// Checked way to get a raw pointer argument
+    #[inline]
+    pub fn arg_pointer(&self, arg: u32) -> Result<*const u8, Error> {
+        Ok(self.arg(arg)? as usize as *const u8)
+    }
+
+    /// Checked way to get a raw char pointer.
+    #[inline]
+    pub fn arg_char_ptr(&self, arg: u32) -> Result<*const libc::c_char, Error> {
+        Ok(self.arg(arg)? as usize as *const libc::c_char)
     }
 }
