@@ -24,12 +24,14 @@ impl From<Errno> for SyscallStatus {
 pub enum Syscall {
     Mknod,
     MknodAt,
+    Quotactl,
 }
 
 pub struct SyscallArch {
     arch: u32,
     mknod: i32,
     mknodat: i32,
+    quotactl: i32,
 }
 
 const SYSCALL_TABLE: &'static [SyscallArch] = &[
@@ -37,11 +39,13 @@ const SYSCALL_TABLE: &'static [SyscallArch] = &[
         arch: AUDIT_ARCH_X86_64,
         mknod: 133,
         mknodat: 259,
+        quotactl: 179,
     },
     SyscallArch {
         arch: AUDIT_ARCH_I386,
         mknod: 14,
         mknodat: 297,
+        quotactl: 131,
     },
 ];
 
@@ -57,6 +61,8 @@ pub fn translate_syscall(arch: u32, nr: c_int) -> Option<Syscall> {
                 return Some(Syscall::Mknod);
             } else if nr == sc.mknodat {
                 return Some(Syscall::MknodAt);
+            } else if nr == sc.quotactl {
+                return Some(Syscall::Quotactl);
             }
         }
     }

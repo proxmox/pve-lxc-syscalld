@@ -95,6 +95,7 @@ impl Client {
         match syscall_nr {
             Syscall::Mknod => crate::sys_mknod::mknod(msg).await,
             Syscall::MknodAt => crate::sys_mknod::mknodat(msg).await,
+            Syscall::Quotactl => crate::sys_quotactl::quotactl(msg).await,
         }
     }
 }

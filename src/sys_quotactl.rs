@@ -66,14 +66,14 @@ pub async fn q_quotaon(
     special: Option<CString>,
 ) -> Result<SyscallStatus, Error> {
     let id = msg.arg_int(2)?;
-    let addr = msg.arg_caddr_t(3)?;
-    let special = special.map(|c| c.as_ptr()).unwrap_or(ptr::null());
+    let addr = msg.arg_caddr_t(3)? as usize;
+    let special = special.map(|c| c.as_ptr()).unwrap_or(ptr::null()) as usize;
 
     let caps = msg.pid_fd().user_caps()?;
     Ok(forking_syscall(move || {
         let this = PidFd::current()?;
         caps.apply(&this)?;
-        let out = sc_libc_try!(unsafe { libc::quotactl(cmd, special, id, addr) });
+        let out = sc_libc_try!(unsafe { libc::quotactl(cmd, special as _, id, addr as _) });
         Ok(SyscallStatus::Ok(out.into()))
     })
     .await?)
