@@ -15,6 +15,12 @@ pub enum SyscallStatus {
     Err(i32),
 }
 
+impl From<Errno> for SyscallStatus {
+    fn from(errno: Errno) -> Self {
+        SyscallStatus::Err(errno as i32)
+    }
+}
+
 pub enum Syscall {
     Mknod,
     MknodAt,

@@ -1,10 +1,11 @@
 use std::sync::Arc;
 
 use failure::Error;
+use nix::errno::Errno;
 
 use crate::lxcseccomp::ProxyMessageBuffer;
 use crate::socket::AsyncSeqPacketSocket;
-use crate::syscall::SyscallStatus;
+use crate::syscall::{self, Syscall, SyscallStatus};
 
 pub struct Client {
     socket: AsyncSeqPacketSocket,
@@ -84,10 +85,16 @@ impl Client {
     }
 
     async fn handle_syscall(msg: &ProxyMessageBuffer) -> Result<SyscallStatus, Error> {
-        match msg.request().data.nr as i64 {
-            libc::SYS_mknod => crate::sys_mknod::mknod(msg).await,
-            libc::SYS_mknodat => crate::sys_mknod::mknodat(msg).await,
-            _ => Ok(SyscallStatus::Err(libc::ENOSYS)),
+        let (arch, sysnr) = (msg.request().data.arch, msg.request().data.nr);
+
+        let syscall_nr = match syscall::translate_syscall(arch, sysnr) {
+            Some(nr) => nr,
+            None => return Ok(Errno::ENOSYS.into()),
+        };
+
+        match syscall_nr {
+            Syscall::Mknod => crate::sys_mknod::mknod(msg).await,
+            Syscall::MknodAt => crate::sys_mknod::mknodat(msg).await,
         }
     }
 }
