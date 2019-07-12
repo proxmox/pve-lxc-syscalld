@@ -15,6 +15,7 @@ pub mod pidfd;
 pub mod seccomp;
 pub mod socket;
 pub mod sys_mknod;
+pub mod sys_quotactl;
 pub mod syscall;
 pub mod tools;
 
