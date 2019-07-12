@@ -1,3 +1,5 @@
+use std::os::raw::c_int;
+
 use failure::Error;
 use nix::errno::Errno;
 
@@ -38,10 +40,22 @@ use crate::syscall::SyscallStatus;
  *      ...
  *      (we don't actually have xfs containers atm...)
  */
+
+const SUBCMDSHIFT: c_int = 8;
+
 pub async fn quotactl(msg: &ProxyMessageBuffer) -> Result<SyscallStatus, Error> {
-    let _cmd = msg.arg_int(0)?;
-    let _special = msg.arg_opt_c_string(1)?;
-    let _id = msg.arg_int(2)?;
-    let _addr = msg.arg_caddr_t(3)?;
+    // let _special = msg.arg_opt_c_string(1)?;
+    // let _id = msg.arg_int(2)?;
+    // let _addr = msg.arg_caddr_t(3)?;
+
+    let cmd = msg.arg_int(0)?;
+
+    match cmd >> SUBCMDSHIFT {
+        libc::Q_QUOTAON => q_quotaon(msg).await,
+        _ => Ok(Errno::ENOSYS.into()),
+    }
+}
+
+pub async fn q_quotaon(_msg: &ProxyMessageBuffer) -> Result<SyscallStatus, Error> {
     Ok(Errno::ENOSYS.into())
 }
