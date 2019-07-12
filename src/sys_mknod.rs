@@ -2,6 +2,7 @@ use std::ffi::CString;
 use std::os::unix::io::AsRawFd;
 
 use failure::Error;
+use nix::errno::Errno;
 use nix::sys::stat;
 
 use crate::fork::forking_syscall;
@@ -15,7 +16,7 @@ pub async fn mknod(msg: &ProxyMessageBuffer) -> Result<SyscallStatus, Error> {
     let mode = msg.arg_mode_t(1)?;
     let dev = msg.arg_dev_t(2)?;
     if !check_mknod_dev(mode, dev) {
-        return Ok(SyscallStatus::Err(libc::EPERM));
+        return Ok(Errno::EPERM.into());
     }
 
     let pathname = msg.arg_c_string(0)?;
@@ -28,7 +29,7 @@ pub async fn mknodat(msg: &ProxyMessageBuffer) -> Result<SyscallStatus, Error> {
     let mode = msg.arg_mode_t(2)?;
     let dev = msg.arg_dev_t(3)?;
     if !check_mknod_dev(mode, dev) {
-        return Ok(SyscallStatus::Err(libc::EPERM));
+        return Ok(Errno::EPERM.into());
     }
 
     let dirfd = msg.arg_fd(0, libc::O_DIRECTORY)?;
