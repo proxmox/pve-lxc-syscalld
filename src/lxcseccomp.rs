@@ -289,11 +289,24 @@ impl ProxyMessageBuffer {
             .ok_or_else(|| nix::errno::Errno::ERANGE.into())
     }
 
+    /// Get a parameter as C String where the pointer may be `NULL`.
+    ///
+    /// Strings are limited to 4k bytes currently.
+    pub fn arg_opt_c_string(&self, arg: u32) -> Result<Option<CString>, Error> {
+        let offset = self.arg(arg)?;
+        if offset == 0 {
+            Ok(None)
+        } else {
+            Ok(Some(crate::syscall::get_c_string(self, offset)?))
+        }
+    }
+
     /// Get a parameter as C String.
     ///
     /// Strings are limited to 4k bytes currently.
     pub fn arg_c_string(&self, arg: u32) -> Result<CString, Error> {
-        crate::syscall::get_c_string(self, self.arg(arg)?)
+        self.arg_opt_c_string(arg)?
+            .ok_or_else(|| Errno::EINVAL.into())
     }
 
     /// Checked way to get a `mode_t` argument.
@@ -314,5 +327,15 @@ impl ProxyMessageBuffer {
         } else {
             Ok(self.pid_fd().fd_num(fd, flags)?)
         }
+    }
+
+    /// Checked way to get a c_int argument.
+    pub fn arg_int(&self, arg: u32) -> Result<c_int, Error> {
+        c_int::try_from(self.arg(arg)?).map_err(|_| Errno::EINVAL.into())
+    }
+
+    /// Checked way to get a `caddr_t` argument.
+    pub fn arg_caddr_t(&self, arg: u32) -> Result<usize, Error> {
+        Ok(self.arg(arg)? as usize)
     }
 }
