@@ -1,6 +1,5 @@
 #![feature(async_await)]
 
-use std::ffi::OsString;
 use std::io;
 
 use failure::{bail, format_err, Error};
@@ -21,14 +20,15 @@ pub mod tools;
 
 use socket::SeqPacketListener;
 
-fn main() {
-    if let Err(err) = run() {
+#[tokio::main]
+async fn main() {
+    if let Err(err) = do_main().await {
         eprintln!("error: {}", err);
         std::process::exit(1);
     }
 }
 
-fn run() -> Result<(), Error> {
+async fn do_main() -> Result<(), Error> {
     let socket_path = std::env::args_os()
         .skip(1)
         .next()
@@ -40,18 +40,6 @@ fn run() -> Result<(), Error> {
         Err(e) => bail!("failed to remove previous socket: {}", e),
     }
 
-    tokio::run(async_run(socket_path));
-
-    Ok(())
-}
-
-async fn async_run(socket_path: OsString) {
-    if let Err(err) = async_run_do(socket_path).await {
-        eprintln!("error accepting clients, bailing out: {}", err);
-    }
-}
-
-async fn async_run_do(socket_path: OsString) -> Result<(), Error> {
     let address =
         SockAddr::new_unix(socket_path.as_os_str()).expect("cannot create struct sockaddr_un?");
 
