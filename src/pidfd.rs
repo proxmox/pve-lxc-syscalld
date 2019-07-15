@@ -10,7 +10,7 @@ use std::os::unix::io::{AsRawFd, FromRawFd, IntoRawFd, RawFd};
 use failure::{bail, Error};
 use libc::pid_t;
 
-use crate::libc_try;
+use crate::c_try;
 use crate::nsfd::{ns_type, NsFd};
 use crate::tools::Fd;
 
@@ -46,7 +46,7 @@ pub struct ProcStatus {
 
 impl PidFd {
     pub fn current() -> io::Result<Self> {
-        let fd = libc_try!(unsafe {
+        let fd = c_try!(unsafe {
             libc::open(
                 b"/proc/self\0".as_ptr() as _,
                 libc::O_DIRECTORY | libc::O_CLOEXEC,
@@ -60,7 +60,7 @@ impl PidFd {
         let path = CString::new(format!("/proc/{}", pid)).unwrap();
 
         let fd =
-            libc_try!(unsafe { libc::open(path.as_ptr(), libc::O_DIRECTORY | libc::O_CLOEXEC) });
+            c_try!(unsafe { libc::open(path.as_ptr(), libc::O_DIRECTORY | libc::O_CLOEXEC) });
 
         Ok(Self(fd, pid))
     }
@@ -91,7 +91,7 @@ impl PidFd {
     }
 
     fn fd(&self, path: &CStr, flags: c_int, mode: c_int) -> io::Result<Fd> {
-        Ok(Fd(libc_try!(unsafe {
+        Ok(Fd(c_try!(unsafe {
             libc::openat(
                 self.as_raw_fd(),
                 path.as_ptr() as *const _,
@@ -119,14 +119,14 @@ impl PidFd {
     }
 
     pub fn enter_cwd(&self) -> io::Result<()> {
-        libc_try!(unsafe { libc::fchdir(self.fd_cwd()?.as_raw_fd()) });
+        c_try!(unsafe { libc::fchdir(self.fd_cwd()?.as_raw_fd()) });
         Ok(())
     }
 
     pub fn enter_chroot(&self) -> io::Result<()> {
-        libc_try!(unsafe { libc::fchdir(self.as_raw_fd()) });
-        libc_try!(unsafe { libc::chroot(b"root\0".as_ptr() as *const _) });
-        libc_try!(unsafe { libc::chdir(b"/\0".as_ptr() as *const _) });
+        c_try!(unsafe { libc::fchdir(self.as_raw_fd()) });
+        c_try!(unsafe { libc::chroot(b"root\0".as_ptr() as *const _) });
+        c_try!(unsafe { libc::chdir(b"/\0".as_ptr() as *const _) });
         Ok(())
     }
 
@@ -350,14 +350,14 @@ impl Capabilities {
             },
         ];
 
-        libc_try!(unsafe { libc::syscall(libc::SYS_capset, &header, &data) });
+        c_try!(unsafe { libc::syscall(libc::SYS_capset, &header, &data) });
 
         Ok(())
     }
 
     /// Change the thread's keep-capabilities flag.
     pub fn set_keep_caps(on: bool) -> io::Result<()> {
-        libc_try!(unsafe { libc::prctl(libc::PR_SET_KEEPCAPS, c_int::from(on)) });
+        c_try!(unsafe { libc::prctl(libc::PR_SET_KEEPCAPS, c_int::from(on)) });
         Ok(())
     }
 }
@@ -449,10 +449,10 @@ impl UserCaps<'_> {
             libc::umask(self.umask);
         }
         Capabilities::set_keep_caps(true)?;
-        libc_try!(unsafe { libc::setegid(self.egid) });
-        libc_try!(unsafe { libc::setfsgid(self.fsgid) });
-        libc_try!(unsafe { libc::seteuid(self.euid) });
-        libc_try!(unsafe { libc::setfsuid(self.fsuid) });
+        c_try!(unsafe { libc::setegid(self.egid) });
+        c_try!(unsafe { libc::setfsgid(self.fsgid) });
+        c_try!(unsafe { libc::seteuid(self.euid) });
+        c_try!(unsafe { libc::setfsuid(self.fsuid) });
         self.capabilities.capset()?;
         Ok(())
     }

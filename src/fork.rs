@@ -15,7 +15,7 @@ use futures::io::AsyncRead;
 
 use crate::syscall::SyscallStatus;
 use crate::tools::Fd;
-use crate::{libc_try, libc_wrap};
+use crate::{c_try, c_call};
 
 pub async fn forking_syscall<F>(func: F) -> io::Result<SyscallStatus>
 where
@@ -55,10 +55,10 @@ impl Fork {
         F: FnOnce() -> io::Result<SyscallStatus> + UnwindSafe,
     {
         let mut pipe: [c_int; 2] = [0, 0];
-        libc_try!(unsafe { libc::pipe2(pipe.as_mut_ptr(), libc::O_CLOEXEC | libc::O_NONBLOCK) });
+        c_try!(unsafe { libc::pipe2(pipe.as_mut_ptr(), libc::O_CLOEXEC | libc::O_NONBLOCK) });
         let (pipe_r, pipe_w) = (Fd(pipe[0]), Fd(pipe[1]));
 
-        let pid = libc_try!(unsafe { libc::fork() });
+        let pid = c_try!(unsafe { libc::fork() });
         if pid == 0 {
             std::mem::drop(pipe_r);
             let mut pipe_w = unsafe { std::fs::File::from_raw_fd(pipe_w.into_raw_fd()) };
@@ -116,7 +116,7 @@ impl Fork {
         let mut status: c_int = -1;
 
         loop {
-            match libc_wrap!(unsafe { libc::waitpid(my_pid, &mut status, 0) }) {
+            match c_call!(unsafe { libc::waitpid(my_pid, &mut status, 0) }) {
                 Ok(pid) if pid == my_pid => break,
                 Ok(_other) => continue,
                 Err(ref err) if err.kind() == io::ErrorKind::Interrupted => continue,

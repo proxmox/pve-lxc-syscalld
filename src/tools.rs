@@ -285,7 +285,7 @@ impl IoVecMut<'_> {
 }
 
 #[macro_export]
-macro_rules! libc_wrap {
+macro_rules! c_call {
     ($expr:expr) => {{
         let res = $expr;
         if res == -1 {
@@ -297,15 +297,10 @@ macro_rules! libc_wrap {
 }
 
 #[macro_export]
-macro_rules! libc_try {
-    ($expr:expr) => {{
-        let res = $expr;
-        if res == -1 {
-            return Err(::std::io::Error::last_os_error());
-        } else {
-            res
-        }
-    }};
+macro_rules! c_try {
+    ($expr:expr) => {
+        crate::c_call!($expr)?
+    };
 }
 
 pub trait FromFd {

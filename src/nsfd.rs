@@ -4,7 +4,7 @@ use std::marker::PhantomData;
 use std::os::raw::c_int;
 use std::os::unix::io::{AsRawFd, FromRawFd, IntoRawFd, RawFd};
 
-use crate::{file_descriptor_type, libc_try};
+use crate::{file_descriptor_type, c_try};
 
 pub mod ns_type {
     pub trait NsType {
@@ -36,13 +36,13 @@ impl RawNsFd {
 
     pub fn openat(fd: RawFd, path: &CStr) -> io::Result<Self> {
         let fd =
-            libc_try!(unsafe { libc::openat(fd, path.as_ptr(), libc::O_RDONLY | libc::O_CLOEXEC) });
+            c_try!(unsafe { libc::openat(fd, path.as_ptr(), libc::O_RDONLY | libc::O_CLOEXEC) });
 
         Ok(Self(fd))
     }
 
     pub fn setns(&self, ns_type: c_int) -> io::Result<()> {
-        libc_try!(unsafe { libc::setns(self.0, ns_type) });
+        c_try!(unsafe { libc::setns(self.0, ns_type) });
         Ok(())
     }
 }
