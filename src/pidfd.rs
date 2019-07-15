@@ -445,10 +445,12 @@ impl UserCaps<'_> {
     }
 
     fn apply_user_caps(&self) -> io::Result<()> {
+        use crate::capability::SecureBits;
         unsafe {
             libc::umask(self.umask);
         }
         Capabilities::set_keep_caps(true)?;
+        (SecureBits::get_current()? | SecureBits::KEEP_CAPS).apply()?;
         c_try!(unsafe { libc::setegid(self.egid) });
         c_try!(unsafe { libc::setfsgid(self.fsgid) });
         c_try!(unsafe { libc::seteuid(self.euid) });

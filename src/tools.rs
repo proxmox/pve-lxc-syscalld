@@ -312,3 +312,17 @@ impl<T: FromRawFd> FromFd for T {
         unsafe { Self::from_raw_fd(fd.into_raw_fd()) }
     }
 }
+
+#[macro_export]
+macro_rules! io_format_err {
+    ($($msg:tt)*) => {
+        ::std::io::Error::new(::std::io::ErrorKind::Other, format!($($msg)*))
+    };
+}
+
+#[macro_export]
+macro_rules! io_bail {
+    ($($msg:tt)*) => {
+        return Err(::std::io::Error::new(::std::io::ErrorKind::Other, format!($($msg)*)));
+    };
+}

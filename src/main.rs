@@ -6,6 +6,7 @@ use failure::{bail, format_err, Error};
 use nix::sys::socket::SockAddr;
 
 pub mod apparmor;
+pub mod capability;
 pub mod client;
 pub mod fork;
 pub mod lxcseccomp;
