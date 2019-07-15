@@ -354,12 +354,6 @@ impl Capabilities {
 
         Ok(())
     }
-
-    /// Change the thread's keep-capabilities flag.
-    pub fn set_keep_caps(on: bool) -> io::Result<()> {
-        c_try!(unsafe { libc::prctl(libc::PR_SET_KEEPCAPS, c_int::from(on)) });
-        Ok(())
-    }
 }
 
 /// Helper to enter a process' permission-check environment.
@@ -449,8 +443,9 @@ impl UserCaps<'_> {
         unsafe {
             libc::umask(self.umask);
         }
-        Capabilities::set_keep_caps(true)?;
-        (SecureBits::get_current()? | SecureBits::KEEP_CAPS).apply()?;
+        let mut secbits = SecureBits::get_current()?;
+        secbits |= SecureBits::KEEP_CAPS | SecureBits::NO_SETUID_FIXUP;
+        secbits.apply()?;
         c_try!(unsafe { libc::setegid(self.egid) });
         c_try!(unsafe { libc::setfsgid(self.fsgid) });
         c_try!(unsafe { libc::seteuid(self.euid) });
