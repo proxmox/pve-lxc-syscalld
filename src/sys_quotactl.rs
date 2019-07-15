@@ -1,6 +1,6 @@
 use std::ffi::CString;
-use std::ptr;
-use std::os::raw::c_int;
+use std::{mem, ptr};
+use std::os::raw::{c_int, c_uint};
 
 use failure::Error;
 use nix::errno::Errno;
@@ -54,11 +54,74 @@ pub async fn quotactl(msg: &ProxyMessageBuffer) -> Result<SyscallStatus, Error> 
     // let _id = msg.arg_int(2)?;
     // let _addr = msg.arg_caddr_t(3)?;
 
-    match cmd >> SUBCMDSHIFT {
+    let subcmd = ((cmd as c_uint) >> SUBCMDSHIFT) as c_int;
+    match subcmd {
+        libc::Q_GETINFO => q_getinfo(msg, cmd, special).await,
+        libc::Q_GETFMT => q_getfmt(msg, cmd, special).await,
         libc::Q_QUOTAON => q_quotaon(msg, cmd, special).await,
-        _ => Ok(Errno::ENOSYS.into()),
+        _ => {
+            eprintln!("Unhandled quota subcommand: {}", subcmd);
+            Ok(Errno::ENOSYS.into())
+        }
     }
 }
+
+//#[allow(non_camel_case_names)]
+#[repr(C)]
+struct dqinfo {
+    dqi_bgrace: u64,
+    dqi_igrace: u64,
+    dqi_flags: u32,
+    dqi_valid: u32,
+}
+
+pub async fn q_getinfo(
+    msg: &ProxyMessageBuffer,
+    cmd: c_int,
+    special: Option<CString>,
+) -> Result<SyscallStatus, Error> {
+    let id = msg.arg_int(2)?;
+    let addr = msg.arg_caddr_t(3)? as u64;
+
+    let mut caps = msg.pid_fd().user_caps()?;
+    Ok(forking_syscall(move || {
+        caps.apply(&PidFd::current()?)?;
+
+        let mut data: dqinfo = unsafe { mem::zeroed() };
+        let special = special.as_ref().map(|c| c.as_ptr()).unwrap_or(ptr::null());
+        sc_libc_try!(unsafe {
+            libc::quotactl(cmd, special, id, &mut data as *mut dqinfo as *mut i8)
+        });
+        msg.mem_write_struct(addr, &data)?;
+        Ok(SyscallStatus::Ok(0))
+    })
+    .await?)
+}
+
+pub async fn q_getfmt(
+    msg: &ProxyMessageBuffer,
+    cmd: c_int,
+    special: Option<CString>,
+) -> Result<SyscallStatus, Error> {
+    let id = msg.arg_int(2)?;
+    let addr = msg.arg_caddr_t(3)? as u64;
+
+    let mut caps = msg.pid_fd().user_caps()?;
+    Ok(forking_syscall(move || {
+        caps.apply(&PidFd::current()?)?;
+
+        let mut data: u32 = 0;
+        let special = special.as_ref().map(|c| c.as_ptr()).unwrap_or(ptr::null());
+        sc_libc_try!(unsafe {
+            libc::quotactl(cmd, special, id, &mut data as *mut u32 as *mut i8)
+        });
+
+        msg.mem_write_struct(addr, &data)?;
+        Ok(SyscallStatus::Ok(0))
+    })
+    .await?)
+}
+
 
 pub async fn q_quotaon(
     msg: &ProxyMessageBuffer,
@@ -67,13 +130,14 @@ pub async fn q_quotaon(
 ) -> Result<SyscallStatus, Error> {
     let id = msg.arg_int(2)?;
     let addr = msg.arg_caddr_t(3)? as usize;
-    let special = special.map(|c| c.as_ptr()).unwrap_or(ptr::null()) as usize;
 
-    let caps = msg.pid_fd().user_caps()?;
+    let mut caps = msg.pid_fd().user_caps()?;
     Ok(forking_syscall(move || {
-        let this = PidFd::current()?;
-        caps.apply(&this)?;
-        let out = sc_libc_try!(unsafe { libc::quotactl(cmd, special as _, id, addr as _) });
+        caps.apply(&PidFd::current()?)?;
+
+        let special = special.as_ref().map(|c| c.as_ptr()).unwrap_or(ptr::null());
+        let out = sc_libc_try!(unsafe { libc::quotactl(cmd, special, id, addr as _) });
+
         Ok(SyscallStatus::Ok(out.into()))
     })
     .await?)

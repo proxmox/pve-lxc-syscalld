@@ -2,7 +2,7 @@
 
 use std::convert::TryFrom;
 use std::ffi::CString;
-use std::os::raw::c_int;
+use std::os::raw::{c_int, c_uint};
 use std::os::unix::fs::FileExt;
 use std::os::unix::io::RawFd;
 use std::{io, mem};
@@ -317,6 +317,36 @@ impl ProxyMessageBuffer {
             .ok_or_else(|| Errno::EINVAL.into())
     }
 
+    /// Read a user space pointer parameter.
+    #[inline]
+    pub fn arg_struct<T>(&self, arg: u32) -> Result<T, Error> {
+        let offset = self.arg(arg)?;
+        let mut data: T = unsafe { mem::zeroed() };
+        let slice = unsafe {
+            std::slice::from_raw_parts_mut(&mut data as *mut _ as *mut u8, mem::size_of::<T>())
+        };
+        let got = self.mem_fd().read_at(slice, offset)?;
+        if got != mem::size_of::<T>() {
+            Err(Errno::EINVAL.into())
+        } else {
+            Ok(data)
+        }
+    }
+
+    /// Read a user space pointer parameter.
+    #[inline]
+    pub fn mem_write_struct<T>(&self, offset: u64, data: &T) -> io::Result<()> {
+        let slice = unsafe {
+            std::slice::from_raw_parts(data as *const T as *const u8, mem::size_of::<T>())
+        };
+        let got = self.mem_fd().write_at(slice, offset)?;
+        if got != mem::size_of::<T>() {
+            Err(Errno::EINVAL.into())
+        } else {
+            Ok(())
+        }
+    }
+
     /// Checked way to get a `mode_t` argument.
     #[inline]
     pub fn arg_mode_t(&self, arg: u32) -> Result<nix::sys::stat::mode_t, Error> {
@@ -340,10 +370,16 @@ impl ProxyMessageBuffer {
         }
     }
 
+    /// Checked way to get a c_uint argument.
+    #[inline]
+    pub fn arg_uint(&self, arg: u32) -> Result<c_uint, Error> {
+        c_uint::try_from(self.arg(arg)?).map_err(|_| Errno::EINVAL.into())
+    }
+
     /// Checked way to get a c_int argument.
     #[inline]
     pub fn arg_int(&self, arg: u32) -> Result<c_int, Error> {
-        c_int::try_from(self.arg(arg)?).map_err(|_| Errno::EINVAL.into())
+        self.arg_uint(arg).map(|u| u as c_int)
     }
 
     /// Checked way to get a `caddr_t` argument.

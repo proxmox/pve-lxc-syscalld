@@ -21,6 +21,7 @@ impl From<Errno> for SyscallStatus {
     }
 }
 
+#[derive(Debug)]
 pub enum Syscall {
     Mknod,
     MknodAt,

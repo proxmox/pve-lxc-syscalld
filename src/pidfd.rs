@@ -386,6 +386,7 @@ impl Capabilities {
 #[must_use = "not using UserCaps may be a security issue"]
 pub struct UserCaps<'a> {
     pidfd: &'a PidFd,
+    apply_uids: bool,
     euid: libc::uid_t,
     egid: libc::gid_t,
     fsuid: libc::uid_t,
@@ -405,6 +406,7 @@ impl UserCaps<'_> {
 
         Ok(UserCaps {
             pidfd,
+            apply_uids: true,
             euid: status.uids.euid,
             egid: status.uids.egid,
             fsuid: status.uids.fsuid,
@@ -440,18 +442,29 @@ impl UserCaps<'_> {
 
     fn apply_user_caps(&self) -> io::Result<()> {
         use crate::capability::SecureBits;
-        unsafe {
-            libc::umask(self.umask);
+        if self.apply_uids {
+            unsafe {
+                libc::umask(self.umask);
+            }
+            let mut secbits = SecureBits::get_current()?;
+            secbits |= SecureBits::KEEP_CAPS | SecureBits::NO_SETUID_FIXUP;
+            secbits.apply()?;
+            c_try!(unsafe { libc::setegid(self.egid) });
+            c_try!(unsafe { libc::setfsgid(self.fsgid) });
+            c_try!(unsafe { libc::seteuid(self.euid) });
+            c_try!(unsafe { libc::setfsuid(self.fsuid) });
         }
-        let mut secbits = SecureBits::get_current()?;
-        secbits |= SecureBits::KEEP_CAPS | SecureBits::NO_SETUID_FIXUP;
-        secbits.apply()?;
-        c_try!(unsafe { libc::setegid(self.egid) });
-        c_try!(unsafe { libc::setfsgid(self.fsgid) });
-        c_try!(unsafe { libc::seteuid(self.euid) });
-        c_try!(unsafe { libc::setfsuid(self.fsuid) });
         self.capabilities.capset()?;
         Ok(())
+    }
+
+    pub fn disable_uid_change(&mut self) {
+        self.apply_uids = false;
+    }
+
+    pub fn disable_cgroup_change(&mut self) {
+        self.cgroup_v1_devices = None;
+        self.cgroup_v2 = None;
     }
 
     pub fn apply(self, own_pidfd: &PidFd) -> io::Result<()> {
