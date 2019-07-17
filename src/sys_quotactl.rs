@@ -35,7 +35,7 @@ use crate::syscall::SyscallStatus;
  *    X       Q_SETQLIM                              -EOPNOTSUPP: not documented anymore
  *    X        Q_SETUSE                              -EOPNOTSUPP: not documented anymore
  *    X      Q_GETSTATS      struct dqstats {}       -EOPNOTSUPP: obsolete, removed since 2.4.22!
- *    X  Q_GETNEXTQUOTA    struct nextdqblk {}
+ *    X  Q_GETNEXTQUOTA    struct nextdqblk {}       uid mapping done by us!
  *    X       Q_SETINFO       struct dqinfo {}
  *    X          Q_SYNC                ignored       -EOPNOTSUPP if `special` is NULL!
  *
