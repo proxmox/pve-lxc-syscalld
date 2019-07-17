@@ -63,10 +63,12 @@ pub async fn quotactl(msg: &ProxyMessageBuffer) -> Result<SyscallStatus, Error> 
     // let _id = msg.arg_int(2)?;
     // let _addr = msg.arg_caddr_t(3)?;
 
-    // FIXME: We can *generally* check that `special` if not None points to a block device owned
+    // XXX: We can *generally* check that `special` if not None points to a block device owned
     // by the container. On the other hand, the container should not have access to the device
     // anyway unless the `devices` cgroup allows it, and should not have been allowed to `mknod` a
     // device on a non-NODEV mounted file system.
+    // Further, we do join the container's devices cgroup, so even if the device node makes its way
+    // into the container, the cgroup should cover this?
 
     let kind = cmd & KINDMASK;
     let subcmd = ((cmd as c_uint) >> SUBCMDSHIFT) as c_int;
