@@ -44,6 +44,36 @@ pub struct ProcStatus {
     umask: libc::mode_t,
 }
 
+pub struct IdMapEntry {
+    ns: u64,
+    host: u64,
+    range: u64,
+}
+
+pub struct IdMap(Vec<IdMapEntry>);
+
+impl IdMap {
+    pub fn map_into(&self, id: u64) -> Option<u64> {
+        for entry in self.0.iter() {
+            if entry.host <= id && entry.host + entry.range > id {
+                return Some(entry.ns + id - entry.host);
+            }
+        }
+
+        None
+    }
+
+    pub fn map_from(&self, id: u64) -> Option<u64> {
+        for entry in self.0.iter() {
+            if entry.ns <= id && entry.ns + entry.range > id {
+                return Some(id + entry.host);
+            }
+        }
+
+        None
+    }
+}
+
 impl PidFd {
     pub fn current() -> io::Result<Self> {
         let fd = c_try!(unsafe {
@@ -171,17 +201,17 @@ impl PidFd {
         Err(io::ErrorKind::NotFound.into())
     }
 
+    #[inline]
+    fn __check_uid_gid(value: Option<&str>) -> io::Result<libc::uid_t> {
+        value
+            .ok_or_else(|| io::Error::new(io::ErrorKind::Other, "bad 'Uid/Gid:' line in proc"))?
+            .parse::<libc::uid_t>()
+            .map_err(|_| io::Error::new(io::ErrorKind::Other, "failed to parse uid from proc"))
+    }
+
     pub fn get_status(&self) -> io::Result<ProcStatus> {
         let reader =
             self.open_buffered(unsafe { CStr::from_bytes_with_nul_unchecked(b"status\0") })?;
-
-        #[inline]
-        fn check_uid_gid(value: Option<&str>) -> io::Result<libc::uid_t> {
-            value
-                .ok_or_else(|| io::Error::new(io::ErrorKind::Other, "bad 'Uid/Gid:' line in proc"))?
-                .parse::<libc::uid_t>()
-                .map_err(|_| io::Error::new(io::ErrorKind::Other, "failed to parse uid from proc"))
-        }
 
         #[inline]
         fn check_u64_hex(value: Option<&str>) -> io::Result<u64> {
@@ -213,16 +243,16 @@ impl PidFd {
             let mut parts = line.split_ascii_whitespace();
             match parts.next() {
                 Some("Uid:") => {
-                    ids.ruid = check_uid_gid(parts.next())?;
-                    ids.euid = check_uid_gid(parts.next())?;
-                    ids.suid = check_uid_gid(parts.next())?;
-                    ids.fsuid = check_uid_gid(parts.next())?;
+                    ids.ruid = Self::__check_uid_gid(parts.next())?;
+                    ids.euid = Self::__check_uid_gid(parts.next())?;
+                    ids.suid = Self::__check_uid_gid(parts.next())?;
+                    ids.fsuid = Self::__check_uid_gid(parts.next())?;
                 }
                 Some("Gid:") => {
-                    ids.rgid = check_uid_gid(parts.next())?;
-                    ids.egid = check_uid_gid(parts.next())?;
-                    ids.sgid = check_uid_gid(parts.next())?;
-                    ids.fsgid = check_uid_gid(parts.next())?;
+                    ids.rgid = Self::__check_uid_gid(parts.next())?;
+                    ids.egid = Self::__check_uid_gid(parts.next())?;
+                    ids.sgid = Self::__check_uid_gid(parts.next())?;
+                    ids.fsgid = Self::__check_uid_gid(parts.next())?;
                 }
                 Some("CapInh:") => caps.inheritable = check_u64_hex(parts.next())?,
                 Some("CapPrm:") => caps.permitted = check_u64_hex(parts.next())?,
@@ -269,6 +299,30 @@ impl PidFd {
         }
 
         Ok(cgroups)
+    }
+
+    pub fn get_uid_gid_map(&self, file: &CStr) -> Result<IdMap, Error> {
+        let reader = self.open_buffered(file)?;
+
+        let mut entries = Vec::new();
+        for line in reader.lines() {
+            let line = line?;
+            let mut parts = line.split_ascii_whitespace();
+            let ns = Self::__check_uid_gid(parts.next())? as u64;
+            let host = Self::__check_uid_gid(parts.next())? as u64;
+            let range = Self::__check_uid_gid(parts.next())? as u64;
+            entries.push(IdMapEntry { ns, host, range });
+        }
+
+        Ok(IdMap(entries))
+    }
+
+    pub fn get_uid_map(&self) -> Result<IdMap, Error> {
+        self.get_uid_gid_map(unsafe { CStr::from_bytes_with_nul_unchecked(b"uid_map\0") })
+    }
+
+    pub fn get_gid_map(&self) -> Result<IdMap, Error> {
+        self.get_uid_gid_map(unsafe { CStr::from_bytes_with_nul_unchecked(b"gid_map\0") })
     }
 
     pub fn read_file(&self, file: &CStr) -> io::Result<Vec<u8>> {

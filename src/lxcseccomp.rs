@@ -107,9 +107,15 @@ impl ProxyMessageBuffer {
         }
     }
 
+    fn reset(&mut self) {
+        self.proxy_msg.cookie_len = 0;
+        self.mem_fd = None;
+        self.pid_fd = None;
+    }
+
     /// Returns None on EOF.
     pub async fn recv(&mut self, socket: &AsyncSeqPacketSocket) -> Result<bool, Error> {
-        self.proxy_msg.cookie_len = 0;
+        self.reset();
 
         unsafe {
             self.cookie_buf.set_len(self.cookie_buf.capacity());
@@ -165,11 +171,6 @@ impl ProxyMessageBuffer {
     /// Note that the message must be valid, otherwise this panics!
     pub fn mem_fd(&self) -> &dyn FileExt {
         self.mem_fd.as_ref().unwrap()
-    }
-
-    pub fn drop_fds(&mut self) {
-        self.pid_fd = None;
-        self.mem_fd = None;
     }
 
     /// Send the current data as response.
@@ -319,7 +320,7 @@ impl ProxyMessageBuffer {
 
     /// Read a user space pointer parameter.
     #[inline]
-    pub fn arg_struct<T>(&self, arg: u32) -> Result<T, Error> {
+    pub fn arg_struct_by_ptr<T>(&self, arg: u32) -> Result<T, Error> {
         let offset = self.arg(arg)?;
         let mut data: T = unsafe { mem::zeroed() };
         let slice = unsafe {
