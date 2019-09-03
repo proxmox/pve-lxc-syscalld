@@ -281,7 +281,7 @@ impl PidFd {
             let num = parts.next();
             let name = parts.next();
             let path = parts.next();
-            if !num.is_some() || !name.is_some() || !path.is_some() || parts.next().is_some() {
+            if num.is_none() || name.is_none() || path.is_none() || parts.next().is_some() {
                 bail!("failed to parse cgroup line: {:?}", line);
             }
 
