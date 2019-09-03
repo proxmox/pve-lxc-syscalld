@@ -33,6 +33,11 @@ $(SUBDIRS):
 cargo-build:
 	cargo build $(CARGO_BUILD_ARGS)
 
+.PHONY: test
+test:
+	cargo test
+	cargo fmt --all -- --check
+
 $(COMPILED_BINS): cargo-build
 
 install: $(COMPILED_BINS)
