@@ -1,7 +1,7 @@
 use std::convert::TryFrom;
 use std::ffi::CString;
-use std::{io, mem, ptr};
 use std::os::raw::{c_int, c_uint};
+use std::{io, mem, ptr};
 
 use failure::Error;
 use nix::errno::Errno;
@@ -139,7 +139,12 @@ pub async fn q_setinfo(
         caps.apply(&PidFd::current()?)?;
 
         sc_libc_try!(unsafe {
-            libc::quotactl(cmd, special.as_ptr(), id, &mut data as *mut dqinfo as *mut i8)
+            libc::quotactl(
+                cmd,
+                special.as_ptr(),
+                id,
+                &mut data as *mut dqinfo as *mut i8,
+            )
         });
 
         Ok(SyscallStatus::Ok(0))
@@ -161,9 +166,7 @@ pub async fn q_getfmt(
 
         let mut data: u32 = 0;
         let special = special.as_ref().map(|c| c.as_ptr()).unwrap_or(ptr::null());
-        sc_libc_try!(unsafe {
-            libc::quotactl(cmd, special, id, &mut data as *mut u32 as *mut i8)
-        });
+        sc_libc_try!(unsafe { libc::quotactl(cmd, special, id, &mut data as *mut u32 as *mut i8) });
 
         msg.mem_write_struct(addr, &data)?;
         Ok(SyscallStatus::Ok(0))
@@ -225,8 +228,7 @@ fn uid_gid_arg(
     let id = map
         .map_from(id as u64)
         .ok_or_else(|| Error::from(Errno::ERANGE))?;
-    let id = c_int::try_from(id)
-        .map_err(|_| Error::from(Errno::ERANGE))?;
+    let id = c_int::try_from(id).map_err(|_| Error::from(Errno::ERANGE))?;
 
     Ok((id, Some(map)))
 }
@@ -251,7 +253,12 @@ pub async fn q_getquota(
 
         let mut data: libc::dqblk = unsafe { mem::zeroed() };
         sc_libc_try!(unsafe {
-            libc::quotactl(cmd, special.as_ptr(), id, &mut data as *mut libc::dqblk as *mut i8)
+            libc::quotactl(
+                cmd,
+                special.as_ptr(),
+                id,
+                &mut data as *mut libc::dqblk as *mut i8,
+            )
         });
 
         msg.mem_write_struct(addr, &data)?;
@@ -279,7 +286,12 @@ pub async fn q_setquota(
         caps.apply(&PidFd::current()?)?;
 
         sc_libc_try!(unsafe {
-            libc::quotactl(cmd, special.as_ptr(), id, &mut data as *mut libc::dqblk as *mut i8)
+            libc::quotactl(
+                cmd,
+                special.as_ptr(),
+                id,
+                &mut data as *mut libc::dqblk as *mut i8,
+            )
         });
 
         Ok(SyscallStatus::Ok(0))
@@ -307,13 +319,19 @@ pub async fn q_getnextquota(
 
         let mut data: nextdqblk = unsafe { mem::zeroed() };
         sc_libc_try!(unsafe {
-            libc::quotactl(cmd, special.as_ptr(), id, &mut data as *mut nextdqblk as *mut i8)
+            libc::quotactl(
+                cmd,
+                special.as_ptr(),
+                id,
+                &mut data as *mut nextdqblk as *mut i8,
+            )
         });
 
         if let Some(idmap) = idmap {
             data.dqb_id = idmap
                 .map_into(u64::from(data.dqb_id))
-                .ok_or_else(|| io::Error::from_raw_os_error(libc::ERANGE))? as u32;
+                .ok_or_else(|| io::Error::from_raw_os_error(libc::ERANGE))?
+                as u32;
         }
 
         msg.mem_write_struct(addr, &data)?;
@@ -336,9 +354,7 @@ pub async fn q_sync(
     Ok(forking_syscall(move || {
         caps.apply(&PidFd::current()?)?;
 
-        sc_libc_try!(unsafe {
-            libc::quotactl(cmd, special.as_ptr(), 0, ptr::null_mut())
-        });
+        sc_libc_try!(unsafe { libc::quotactl(cmd, special.as_ptr(), 0, ptr::null_mut()) });
 
         Ok(SyscallStatus::Ok(0))
     })

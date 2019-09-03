@@ -89,8 +89,7 @@ impl PidFd {
     pub fn open(pid: pid_t) -> io::Result<Self> {
         let path = CString::new(format!("/proc/{}", pid)).unwrap();
 
-        let fd =
-            c_try!(unsafe { libc::open(path.as_ptr(), libc::O_DIRECTORY | libc::O_CLOEXEC) });
+        let fd = c_try!(unsafe { libc::open(path.as_ptr(), libc::O_DIRECTORY | libc::O_CLOEXEC) });
 
         Ok(Self(fd, pid))
     }

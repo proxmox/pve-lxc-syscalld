@@ -15,7 +15,7 @@ use futures::io::AsyncRead;
 
 use crate::syscall::SyscallStatus;
 use crate::tools::Fd;
-use crate::{c_try, c_call};
+use crate::{c_call, c_try};
 
 pub async fn forking_syscall<F>(func: F) -> io::Result<SyscallStatus>
 where
