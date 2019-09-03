@@ -5,17 +5,17 @@ use crate::{c_call, io_format_err};
 
 bitflags::bitflags! {
     pub struct SecureBits: c_ulong {
-        const NOROOT                        = 0b000000001;
-        const NOROOT_LOCKED                 = 0b000000010;
-        const NO_SETUID_FIXUP               = 0b000000100;
-        const NO_SETUID_FIXUP_LOCKED        = 0b000001000;
-        const KEEP_CAPS                     = 0b000010000;
-        const KEEP_CAPS_LOCKED              = 0b000100000;
-        const NO_CAP_AMBIENT_RAISE          = 0b001000000;
-        const NO_CAP_AMBIENT_RAISE_LOCKED   = 0b010000000;
+        const NOROOT                        = 0b0_0000_0001;
+        const NOROOT_LOCKED                 = 0b0_0000_0010;
+        const NO_SETUID_FIXUP               = 0b0_0000_0100;
+        const NO_SETUID_FIXUP_LOCKED        = 0b0_0000_1000;
+        const KEEP_CAPS                     = 0b0_0001_0000;
+        const KEEP_CAPS_LOCKED              = 0b0_0010_0000;
+        const NO_CAP_AMBIENT_RAISE          = 0b0_0100_0000;
+        const NO_CAP_AMBIENT_RAISE_LOCKED   = 0b0_1000_0000;
 
-        const ALL_BITS                      = 0b001010101;
-        const ALL_LOCKS                     = 0b010101010;
+        const ALL_BITS                      = 0b0_0101_0101;
+        const ALL_LOCKS                     = 0b0_1010_1010;
     }
 }
 

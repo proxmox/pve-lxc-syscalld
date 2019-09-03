@@ -46,7 +46,7 @@ use crate::syscall::SyscallStatus;
  *          (we don't actually have xfs containers atm...)
  */
 
-const Q_GETNEXTQUOTA: c_int = 0x800009;
+const Q_GETNEXTQUOTA: c_int = 0x80_0009;
 
 const KINDMASK: c_int = 0xff;
 const SUBCMDSHIFT: c_int = 8;

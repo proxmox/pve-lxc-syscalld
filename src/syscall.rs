@@ -7,8 +7,8 @@ use nix::errno::Errno;
 use crate::lxcseccomp::ProxyMessageBuffer;
 use crate::tools::vec;
 
-const AUDIT_ARCH_X86_64: u32 = 0xc000003e;
-const AUDIT_ARCH_I386: u32 = 0x40000003;
+const AUDIT_ARCH_X86_64: u32 = 0xc000_003e;
+const AUDIT_ARCH_I386: u32 = 0x4000_0003;
 
 pub enum SyscallStatus {
     Ok(i64),
@@ -35,7 +35,7 @@ pub struct SyscallArch {
     quotactl: i32,
 }
 
-const SYSCALL_TABLE: &'static [SyscallArch] = &[
+const SYSCALL_TABLE: &[SyscallArch] = &[
     SyscallArch {
         arch: AUDIT_ARCH_X86_64,
         mknod: 133,

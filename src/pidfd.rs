@@ -361,7 +361,7 @@ impl CGroups {
 }
 
 // Too lazy to bindgen libcap stuff...
-const CAPABILITY_VERSION_3: u32 = 0x20080522;
+const CAPABILITY_VERSION_3: u32 = 0x2008_0522;
 
 /// Represents process capabilities.
 ///
