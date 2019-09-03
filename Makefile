@@ -37,6 +37,7 @@ cargo-build:
 test:
 	cargo test
 	cargo fmt --all -- --check
+	cargo clippy
 
 $(COMPILED_BINS): cargo-build
 
