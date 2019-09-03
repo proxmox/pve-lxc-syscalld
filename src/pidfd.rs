@@ -288,7 +288,7 @@ impl PidFd {
             let name = String::from_utf8(name.unwrap().to_vec())?;
             let path = OsString::from_vec(path.unwrap().to_vec());
 
-            if name.len() == 0 {
+            if name.is_empty() {
                 cgroups.v2 = Some(path);
             } else {
                 for entry in name.split(',') {
@@ -307,9 +307,9 @@ impl PidFd {
         for line in reader.lines() {
             let line = line?;
             let mut parts = line.split_ascii_whitespace();
-            let ns = Self::__check_uid_gid(parts.next())? as u64;
-            let host = Self::__check_uid_gid(parts.next())? as u64;
-            let range = Self::__check_uid_gid(parts.next())? as u64;
+            let ns = u64::from(Self::__check_uid_gid(parts.next())?);
+            let host = u64::from(Self::__check_uid_gid(parts.next())?);
+            let range = u64::from(Self::__check_uid_gid(parts.next())?);
             entries.push(IdMapEntry { ns, host, range });
         }
 

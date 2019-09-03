@@ -11,10 +11,10 @@ pub fn get_label(pidfd: &PidFd) -> io::Result<Option<OsString>> {
         match pidfd.read_file(unsafe { CStr::from_bytes_with_nul_unchecked(b"attr/current\0") }) {
             Ok(out) => out,
             Err(ref e) if e.raw_os_error() == Some(libc::EINVAL) => return Ok(None),
-            Err(other) => return Err(other.into()),
+            Err(other) => return Err(other),
         };
 
-    if out.len() == 0 {
+    if out.is_empty() {
         return Err(io::ErrorKind::UnexpectedEof.into());
     }
 

@@ -31,8 +31,7 @@ async fn main() {
 
 async fn do_main() -> Result<(), Error> {
     let socket_path = std::env::args_os()
-        .skip(1)
-        .next()
+        .nth(1)
         .ok_or_else(|| format_err!("missing parameter: socket path to listen on"))?;
 
     match std::fs::remove_file(&socket_path) {

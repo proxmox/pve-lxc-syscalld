@@ -292,7 +292,7 @@ impl ProxyMessageBuffer {
             .data
             .args
             .get(arg as usize)
-            .map(|x| *x)
+            .copied()
             .ok_or_else(|| nix::errno::Errno::ERANGE.into())
     }
 

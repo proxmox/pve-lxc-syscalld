@@ -81,7 +81,7 @@ impl SeqPacketSocket {
         msg.msg_iov = iov.as_ptr() as *const libc::iovec as *mut libc::iovec;
         msg.msg_iovlen = iov.len();
 
-        let sent = unsafe { libc::sendmsg(self.fd(), &mut msg, libc::MSG_NOSIGNAL) };
+        let sent = unsafe { libc::sendmsg(self.fd(), &msg, libc::MSG_NOSIGNAL) };
         if sent < 0 {
             return Err(io::Error::last_os_error());
         }
@@ -247,7 +247,7 @@ impl AsyncSeqPacketSocket {
     pub fn poll_sendmsg_vectored(&self, data: &[IoVec], cx: &mut Context) -> Poll<io::Result<()>> {
         loop {
             match self.socket.sendmsg_vectored(data) {
-                Ok(res) => break Poll::Ready(Ok(res)),
+                Ok(()) => break Poll::Ready(Ok(())),
                 Err(ref err) if err.kind() == io::ErrorKind::WouldBlock => {
                     match ready!(self.registration.poll_write_ready(cx)) {
                         Ok(_) => continue,
