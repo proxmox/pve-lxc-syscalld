@@ -58,11 +58,13 @@ impl SeqPacketSocket {
                 && cmsg.cmsg_len == unsafe { libc::CMSG_LEN(fdlist_size) as usize }
                 && cmsg.cmsg_level == libc::SOL_SOCKET
             {
-                let fds = unsafe {
-                    std::slice::from_raw_parts(libc::CMSG_DATA(cmsg_ptr) as *const RawFd, num_fds)
-                };
-                for fd in fds {
-                    out_fds.push(Fd(*fd));
+                unsafe {
+                    #[allow(clippy::cast_ptr_alignment)]
+                    let mut data_ptr = libc::CMSG_DATA(cmsg_ptr) as *const RawFd;
+                    for _ in 0..num_fds {
+                        out_fds.push(Fd(ptr::read_unaligned(data_ptr)));
+                        data_ptr = data_ptr.add(1);
+                    }
                 }
                 break;
             }
