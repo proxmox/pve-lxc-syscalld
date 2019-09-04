@@ -20,7 +20,7 @@ bitflags::bitflags! {
 }
 
 impl SecureBits {
-    pub fn apply(&self) -> io::Result<()> {
+    pub fn apply(self) -> io::Result<()> {
         c_call!(unsafe { libc::prctl(libc::PR_SET_SECUREBITS, self.bits()) })?;
         Ok(())
     }
