@@ -1,5 +1,3 @@
-#![feature(async_await)]
-
 use std::io;
 
 use failure::{bail, format_err, Error};
