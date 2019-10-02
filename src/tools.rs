@@ -9,10 +9,10 @@ use std::os::unix::io::{AsRawFd, FromRawFd, IntoRawFd, RawFd};
 use std::pin::Pin;
 use std::task::{Context, Poll};
 
-use futures::io::{AsyncRead, AsyncWrite};
 use futures::ready;
 use mio::unix::EventedFd;
 use mio::{PollOpt, Ready, Token};
+use tokio::io::{AsyncRead, AsyncWrite};
 
 #[macro_export]
 macro_rules! file_descriptor_type {
@@ -101,7 +101,7 @@ impl mio::Evented for Fd {
 
 pub struct AsyncFd {
     fd: Fd,
-    registration: tokio::reactor::Registration,
+    registration: tokio_net::driver::Registration,
 }
 
 impl Drop for AsyncFd {
@@ -114,7 +114,7 @@ impl Drop for AsyncFd {
 
 impl AsyncFd {
     pub fn new(fd: Fd) -> io::Result<Self> {
-        let registration = tokio::reactor::Registration::new();
+        let registration = tokio_net::driver::Registration::new();
         if !registration.register(&fd)? {
             return Err(io::Error::new(
                 io::ErrorKind::Other,
@@ -217,7 +217,7 @@ impl AsyncWrite for GenericStream {
         Poll::Ready(Ok(()))
     }
 
-    fn poll_close(self: Pin<&mut Self>, _cx: &mut Context) -> Poll<io::Result<()>> {
+    fn poll_shutdown(self: Pin<&mut Self>, _cx: &mut Context) -> Poll<io::Result<()>> {
         std::mem::drop(self.get_mut().0.take());
         Poll::Ready(Ok(()))
     }

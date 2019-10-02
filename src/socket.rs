@@ -112,7 +112,7 @@ impl AsRawFd for SeqPacketSocket {
 
 pub struct SeqPacketListener {
     fd: Fd,
-    registration: tokio::reactor::Registration,
+    registration: tokio_net::driver::Registration,
 }
 
 impl Drop for SeqPacketListener {
@@ -135,7 +135,7 @@ impl SeqPacketListener {
         nix::sys::socket::bind(fd.as_raw_fd(), &address)?;
         nix::sys::socket::listen(fd.as_raw_fd(), 16)?;
 
-        let registration = tokio::reactor::Registration::new();
+        let registration = tokio_net::driver::Registration::new();
         if !registration.register(&fd)? {
             bail!("duplicate file descriptor registration?");
         }
@@ -188,7 +188,7 @@ impl SeqPacketListener {
 
 pub struct AsyncSeqPacketSocket {
     socket: SeqPacketSocket,
-    registration: tokio::reactor::Registration,
+    registration: tokio_net::driver::Registration,
 }
 
 impl Drop for AsyncSeqPacketSocket {
@@ -201,7 +201,7 @@ impl Drop for AsyncSeqPacketSocket {
 
 impl AsyncSeqPacketSocket {
     pub fn new(fd: Fd) -> Result<Self, Error> {
-        let registration = tokio::reactor::Registration::new();
+        let registration = tokio_net::driver::Registration::new();
         if !registration.register(&fd)? {
             bail!("duplicate file descriptor registration?");
         }

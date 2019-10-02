@@ -11,7 +11,7 @@ use std::panic::UnwindSafe;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 
-use futures::io::AsyncRead;
+use tokio::io::{AsyncRead, AsyncReadExt};
 
 use crate::syscall::SyscallStatus;
 use crate::tools::Fd;
@@ -135,8 +135,6 @@ impl Fork {
     }
 
     pub async fn get_result(&mut self) -> io::Result<SyscallStatus> {
-        use futures::io::AsyncReadExt;
-
         let mut data: Data = unsafe { std::mem::zeroed() };
         self.read_exact(unsafe {
             std::slice::from_raw_parts_mut(
@@ -165,15 +163,7 @@ impl AsyncRead for Fork {
         unsafe { self.map_unchecked_mut(|this| &mut this.out) }.poll_read(cx, buf)
     }
 
-    unsafe fn initializer(&self) -> futures::io::Initializer {
-        self.out.initializer()
-    }
-
-    fn poll_read_vectored(
-        self: Pin<&mut Self>,
-        cx: &mut Context,
-        bufs: &mut [futures::io::IoSliceMut],
-    ) -> Poll<io::Result<usize>> {
-        unsafe { self.map_unchecked_mut(|this| &mut this.out) }.poll_read_vectored(cx, bufs)
+    unsafe fn prepare_uninitialized_buffer(&self, _buf: &mut [u8]) -> bool {
+        false
     }
 }
