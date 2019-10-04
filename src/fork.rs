@@ -136,13 +136,21 @@ impl Fork {
 
     pub async fn get_result(&mut self) -> io::Result<SyscallStatus> {
         let mut data: Data = unsafe { std::mem::zeroed() };
-        self.read_exact(unsafe {
+        // Compiler bug: we currently need to put the slice into a temporary variable...
+        let dataslice: &mut [u8] = unsafe {
             std::slice::from_raw_parts_mut(
                 &mut data as *mut Data as *mut u8,
                 std::mem::size_of::<Data>(),
             )
-        })
-        .await?;
+        };
+        self.read_exact(dataslice).await?;
+        //self.read_exact(unsafe {
+        //    std::slice::from_raw_parts_mut(
+        //        &mut data as *mut Data as *mut u8,
+        //        std::mem::size_of::<Data>(),
+        //    )
+        //})
+        //.await?;
         if data.failure != 0 {
             Err(io::Error::from_raw_os_error(data.failure))
         } else if data.error == 0 {
