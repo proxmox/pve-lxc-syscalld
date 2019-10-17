@@ -8,14 +8,10 @@ use std::io;
 use std::os::raw::c_int;
 use std::os::unix::io::{FromRawFd, IntoRawFd};
 use std::panic::UnwindSafe;
-use std::pin::Pin;
-use std::task::{Context, Poll};
 
-use tokio::io::{AsyncRead, AsyncReadExt};
+use io_uring::socket::pipe::{self, Pipe};
 
 use crate::syscall::SyscallStatus;
-use crate::tools::Fd;
-use crate::{c_call, c_try};
 
 pub async fn forking_syscall<F>(func: F) -> io::Result<SyscallStatus>
 where
@@ -31,7 +27,7 @@ pub struct Fork {
     pid: Option<libc::pid_t>,
     // FIXME: abuse! tokio-fs is not updated to futures@0.3 yet, but a TcpStream does the same
     // thing as a file when it's already open anyway...
-    out: crate::tools::GenericStream,
+    out: Pipe<pipe::Read>,
 }
 
 impl Drop for Fork {
@@ -54,13 +50,11 @@ impl Fork {
     where
         F: FnOnce() -> io::Result<SyscallStatus> + UnwindSafe,
     {
-        let mut pipe: [c_int; 2] = [0, 0];
-        c_try!(unsafe { libc::pipe2(pipe.as_mut_ptr(), libc::O_CLOEXEC | libc::O_NONBLOCK) });
-        let (pipe_r, pipe_w) = (Fd(pipe[0]), Fd(pipe[1]));
+        let (pipe_r, pipe_w) = pipe::pipe_default()?;
 
         let pid = c_try!(unsafe { libc::fork() });
         if pid == 0 {
-            std::mem::drop(pipe_r);
+            drop(pipe_r);
             let mut pipe_w = unsafe { std::fs::File::from_raw_fd(pipe_w.into_raw_fd()) };
 
             let _ = std::panic::catch_unwind(move || {
@@ -99,11 +93,7 @@ impl Fork {
                 libc::_exit(-1);
             }
         }
-
-        let pipe_r = match crate::tools::GenericStream::from_fd(pipe_r) {
-            Ok(o) => o,
-            Err(err) => return Err(io::Error::new(io::ErrorKind::Other, err.to_string())),
-        };
+        drop(pipe_w);
 
         Ok(Self {
             pid: Some(pid),
@@ -143,7 +133,7 @@ impl Fork {
                 std::mem::size_of::<Data>(),
             )
         };
-        self.read_exact(dataslice).await?;
+        self.out.read_exact(dataslice).await?;
         //self.read_exact(unsafe {
         //    std::slice::from_raw_parts_mut(
         //        &mut data as *mut Data as *mut u8,
@@ -158,20 +148,5 @@ impl Fork {
         } else {
             Ok(SyscallStatus::Err(data.error))
         }
-    }
-}
-
-// default impl will work
-impl AsyncRead for Fork {
-    fn poll_read(
-        self: Pin<&mut Self>,
-        cx: &mut Context,
-        buf: &mut [u8],
-    ) -> Poll<io::Result<usize>> {
-        unsafe { self.map_unchecked_mut(|this| &mut this.out) }.poll_read(cx, buf)
-    }
-
-    unsafe fn prepare_uninitialized_buffer(&self, _buf: &mut [u8]) -> bool {
-        false
     }
 }

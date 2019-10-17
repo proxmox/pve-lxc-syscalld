@@ -10,12 +10,11 @@ use std::os::unix::io::{AsRawFd, FromRawFd, IntoRawFd, RawFd};
 use failure::{bail, Error};
 use libc::pid_t;
 
-use crate::c_try;
 use crate::nsfd::{ns_type, NsFd};
 use crate::tools::Fd;
 
 pub struct PidFd(RawFd, pid_t);
-crate::file_descriptor_impl!(PidFd);
+file_descriptor_impl!(PidFd);
 
 #[derive(Default)]
 pub struct Uids {

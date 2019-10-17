@@ -8,13 +8,13 @@ use std::os::unix::io::RawFd;
 use std::{io, mem};
 
 use failure::{bail, format_err, Error};
+use io_uring::socket::SeqPacketSocket;
 use lazy_static::lazy_static;
 use libc::pid_t;
 use nix::errno::Errno;
 
 use crate::pidfd::PidFd;
 use crate::seccomp::{SeccompNotif, SeccompNotifResp, SeccompNotifSizes};
-use crate::socket::AsyncSeqPacketSocket;
 use crate::tools::{Fd, FromFd, IoVec, IoVecMut};
 
 /// Seccomp notification proxy message sent by the lxc monitor.
@@ -114,7 +114,7 @@ impl ProxyMessageBuffer {
     }
 
     /// Returns None on EOF.
-    pub async fn recv(&mut self, socket: &AsyncSeqPacketSocket) -> Result<bool, Error> {
+    pub async fn recv(&mut self, socket: &SeqPacketSocket) -> Result<bool, Error> {
         self.reset();
 
         unsafe {
@@ -174,13 +174,17 @@ impl ProxyMessageBuffer {
     }
 
     /// Send the current data as response.
-    pub async fn respond(&mut self, socket: &AsyncSeqPacketSocket) -> io::Result<()> {
+    pub async fn respond(&mut self, socket: &SeqPacketSocket) -> io::Result<()> {
         let iov = [
             unsafe { io_vec(&self.proxy_msg) },
             unsafe { io_vec(&self.seccomp_notif) },
             unsafe { io_vec(&self.seccomp_resp) },
         ];
-        socket.sendmsg_vectored(&iov).await
+        let len = iov.iter().map(|e| e.len()).sum();
+        if socket.sendmsg_vectored(&iov, &[]).await? != len {
+            io_bail!("truncated message?");
+        }
+        Ok(())
     }
 
     #[inline]

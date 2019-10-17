@@ -4,8 +4,6 @@ use std::marker::PhantomData;
 use std::os::raw::c_int;
 use std::os::unix::io::{AsRawFd, FromRawFd, IntoRawFd, RawFd};
 
-use crate::{c_try, file_descriptor_type};
-
 pub mod ns_type {
     pub trait NsType {
         const TYPE: libc::c_int;

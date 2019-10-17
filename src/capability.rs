@@ -1,8 +1,6 @@
 use std::io;
 use std::os::raw::c_ulong;
 
-use crate::{c_call, io_format_err};
-
 bitflags::bitflags! {
     pub struct SecureBits: c_ulong {
         const NOROOT                        = 0b0_0000_0001;

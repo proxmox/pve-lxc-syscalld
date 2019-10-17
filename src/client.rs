@@ -4,15 +4,15 @@ use failure::Error;
 use nix::errno::Errno;
 
 use crate::lxcseccomp::ProxyMessageBuffer;
-use crate::socket::AsyncSeqPacketSocket;
 use crate::syscall::{self, Syscall, SyscallStatus};
+use io_uring::socket::SeqPacketSocket;
 
 pub struct Client {
-    socket: AsyncSeqPacketSocket,
+    socket: SeqPacketSocket,
 }
 
 impl Client {
-    pub fn new(socket: AsyncSeqPacketSocket) -> Arc<Self> {
+    pub fn new(socket: SeqPacketSocket) -> Arc<Self> {
         Arc::new(Self { socket })
     }
 
@@ -44,7 +44,7 @@ impl Client {
 
             // Note: our spawned tasks here must not access our socket, as we cannot guarantee
             // they'll be woken up if another task errors into `wrap_error()`.
-            tokio::spawn(self.clone().wrap_error(self.clone().__handle_syscall(msg)));
+            crate::spawn(self.clone().wrap_error(self.clone().__handle_syscall(msg)));
         }
     }
 

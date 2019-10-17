@@ -1,7 +1,11 @@
+use std::future::Future;
 use std::io;
 
 use failure::{bail, format_err, Error};
 use nix::sys::socket::SockAddr;
+
+#[macro_use]
+mod macros;
 
 pub mod apparmor;
 pub mod capability;
@@ -11,17 +15,31 @@ pub mod lxcseccomp;
 pub mod nsfd;
 pub mod pidfd;
 pub mod seccomp;
-pub mod socket;
 pub mod sys_mknod;
 pub mod sys_quotactl;
 pub mod syscall;
 pub mod tools;
 
-use socket::SeqPacketListener;
+use io_uring::socket::SeqPacketListener;
 
-#[tokio::main]
-async fn main() {
-    if let Err(err) = do_main().await {
+static mut EXECUTOR: *mut futures::executor::ThreadPool = std::ptr::null_mut();
+
+pub fn executor() -> &'static futures::executor::ThreadPool {
+    unsafe { &*EXECUTOR }
+}
+
+pub fn spawn(fut: impl Future<Output = ()> + Send + 'static) {
+    executor().spawn_ok(fut)
+}
+
+fn main() {
+    let mut executor = futures::executor::ThreadPool::new().expect("spawning worker threadpool");
+    unsafe {
+        EXECUTOR = &mut executor;
+    }
+    std::sync::atomic::fence(std::sync::atomic::Ordering::Release);
+
+    if let Err(err) = executor.run(do_main()) {
         eprintln!("error: {}", err);
         std::process::exit(1);
     }
@@ -41,11 +59,11 @@ async fn do_main() -> Result<(), Error> {
     let address =
         SockAddr::new_unix(socket_path.as_os_str()).expect("cannot create struct sockaddr_un?");
 
-    let mut listener = SeqPacketListener::bind(&address)
+    let mut listener = SeqPacketListener::bind_default(&address)
         .map_err(|e| format_err!("failed to create listening socket: {}", e))?;
     loop {
         let client = listener.accept().await?;
         let client = client::Client::new(client);
-        tokio::spawn(client.main());
+        spawn(client.main());
     }
 }
