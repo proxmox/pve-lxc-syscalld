@@ -133,7 +133,7 @@ impl ProxyMessageBuffer {
         }
 
         let mut fd_cmsg_buf = io_uring::socket::cmsg::buffer::<[RawFd; 2]>();
-        let res = socket
+        let mut res = socket
             .recvmsg_vectored(&mut iovec, Some(&mut fd_cmsg_buf))
             .await?;
 
