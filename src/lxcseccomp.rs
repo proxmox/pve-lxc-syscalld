@@ -4,7 +4,7 @@ use std::convert::TryFrom;
 use std::ffi::CString;
 use std::os::raw::{c_int, c_uint};
 use std::os::unix::fs::FileExt;
-use std::os::unix::io::RawFd;
+use std::os::unix::io::{FromRawFd, RawFd};
 use std::{io, mem};
 
 use failure::{bail, format_err, Error};
@@ -132,12 +132,35 @@ impl ProxyMessageBuffer {
             self.cookie_buf.set_len(0);
         }
 
-        let (size, fds) = socket.recv_fds_vectored(&mut iovec, 2).await?;
-        if size == 0 {
+        let mut fd_cmsg_buf = io_uring::socket::cmsg::buffer::<[RawFd; 2]>();
+        let res = socket
+            .recvmsg_vectored(&mut iovec, Some(&mut fd_cmsg_buf))
+            .await?;
+
+        if res.len() == 0 {
             return Ok(false);
         }
 
-        self.set_len(size)?;
+        self.set_len(res.len())?;
+
+        let cmsg = res
+            .take_control_messages()
+            .next()
+            .ok_or_else(|| format_err!("missing file descriptors in message"))?;
+
+        if cmsg.cmsg_level != libc::SOL_SOCKET && cmsg.cmsg_type != libc::SCM_RIGHTS {
+            bail!("expected SCM_RIGHTS control message");
+        }
+
+        let fds: Vec<Fd> = cmsg
+            .data
+            .chunks_exact(mem::size_of::<RawFd>())
+            .map(|chunk| unsafe { Fd::from_raw_fd(std::ptr::read_unaligned(chunk.as_ptr() as _)) })
+            .collect();
+
+        if fds.len() != 2 {
+            bail!("expected exactly 2 file descriptors in control message");
+        }
 
         let mut fds = fds.into_iter();
         let pid_fd = unsafe {
