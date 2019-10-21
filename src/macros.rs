@@ -1,3 +1,11 @@
+// c_str!() from the byte-strings crate is implemented via a proc macro which seems a bit excessive
+macro_rules! c_str {
+    ($data:expr) => {{
+        let bytes = concat!($data, "\0");
+        unsafe { std::ffi::CStr::from_bytes_with_nul_unchecked(bytes.as_bytes()) }
+    }};
+}
+
 macro_rules! file_descriptor_type {
     ($type:ident) => {
         #[repr(transparent)]
