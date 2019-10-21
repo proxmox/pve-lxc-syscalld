@@ -13,7 +13,7 @@ use lazy_static::lazy_static;
 use libc::pid_t;
 use nix::errno::Errno;
 
-use crate::pidfd::PidFd;
+use crate::process::PidFd;
 use crate::seccomp::{SeccompNotif, SeccompNotifResp, SeccompNotifSizes};
 use crate::tools::{Fd, FromFd, IoVec, IoVecMut};
 

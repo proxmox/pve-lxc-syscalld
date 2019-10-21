@@ -4,7 +4,7 @@ use std::ffi::{OsStr, OsString};
 use std::io::{self, Write};
 use std::os::unix::ffi::{OsStrExt, OsStringExt};
 
-use crate::pidfd::PidFd;
+use crate::process::PidFd;
 
 pub fn get_label(pidfd: &PidFd) -> io::Result<Option<OsString>> {
     let mut out = match pidfd.read_file(c_str!("attr/current")) {

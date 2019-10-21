@@ -1,77 +1,22 @@
 //! pidfd helper functionality
 
-use std::collections::HashMap;
-use std::ffi::{CStr, CString, OsStr, OsString};
+use std::ffi::{CStr, CString, OsString};
 use std::io::{self, BufRead, BufReader};
 use std::os::raw::c_int;
-use std::os::unix::ffi::{OsStrExt, OsStringExt};
+use std::os::unix::ffi::OsStringExt;
 use std::os::unix::io::{AsRawFd, FromRawFd, IntoRawFd, RawFd};
 
 use failure::{bail, Error};
 use libc::pid_t;
 
+use crate::capability::Capabilities;
 use crate::nsfd::{ns_type, NsFd};
 use crate::tools::Fd;
 
+use super::{CGroups, IdMap, IdMapEntry, ProcStatus, Uids, UserCaps};
+
 pub struct PidFd(RawFd, pid_t);
 file_descriptor_impl!(PidFd);
-
-#[derive(Default)]
-pub struct Uids {
-    pub ruid: libc::uid_t,
-    pub euid: libc::uid_t,
-    pub suid: libc::uid_t,
-    pub fsuid: libc::uid_t,
-    pub rgid: libc::gid_t,
-    pub egid: libc::gid_t,
-    pub sgid: libc::gid_t,
-    pub fsgid: libc::gid_t,
-}
-
-#[derive(Clone, Default)]
-pub struct Capabilities {
-    inheritable: u64,
-    permitted: u64,
-    effective: u64,
-    //bounding: u64, // we don't care currently
-}
-
-#[derive(Default)]
-pub struct ProcStatus {
-    uids: Uids,
-    capabilities: Capabilities,
-    umask: libc::mode_t,
-}
-
-pub struct IdMapEntry {
-    ns: u64,
-    host: u64,
-    range: u64,
-}
-
-pub struct IdMap(Vec<IdMapEntry>);
-
-impl IdMap {
-    pub fn map_into(&self, id: u64) -> Option<u64> {
-        for entry in self.0.iter() {
-            if entry.host <= id && entry.host + entry.range > id {
-                return Some(entry.ns + id - entry.host);
-            }
-        }
-
-        None
-    }
-
-    pub fn map_from(&self, id: u64) -> Option<u64> {
-        for entry in self.0.iter() {
-            if entry.ns <= id && entry.ns + entry.range > id {
-                return Some(id + entry.host);
-            }
-        }
-
-        None
-    }
-}
 
 impl PidFd {
     pub fn current() -> io::Result<Self> {
@@ -299,7 +244,7 @@ impl PidFd {
             entries.push(IdMapEntry { ns, host, range });
         }
 
-        Ok(IdMap(entries))
+        Ok(IdMap::new(entries))
     }
 
     pub fn get_uid_map(&self) -> Result<IdMap, Error> {
@@ -321,200 +266,5 @@ impl PidFd {
 
     pub fn user_caps(&self) -> Result<UserCaps, Error> {
         UserCaps::new(self)
-    }
-}
-
-pub struct CGroups {
-    v1: HashMap<String, OsString>,
-    v2: Option<OsString>,
-}
-
-impl CGroups {
-    fn new() -> Self {
-        Self {
-            v1: HashMap::new(),
-            v2: None,
-        }
-    }
-
-    pub fn get(&self, name: &str) -> Option<&OsStr> {
-        self.v1.get(name).map(|s| s.as_os_str())
-    }
-
-    pub fn v2(&self) -> Option<&OsStr> {
-        self.v2.as_ref().map(|s| s.as_os_str())
-    }
-}
-
-// Too lazy to bindgen libcap stuff...
-const CAPABILITY_VERSION_3: u32 = 0x2008_0522;
-
-/// Represents process capabilities.
-///
-/// This can be used to change the process' capability sets (if permitted by the kernel).
-impl Capabilities {
-    // We currently don't implement capget as it takes a pid which is racy on kernels without pidfd
-    // support. Later on we might support a `capget(&PidFd)` method?
-
-    /// Change our process capabilities. This does not include the bounding set.
-    pub fn capset(&self) -> io::Result<()> {
-        #![allow(dead_code)]
-        // kernel abi:
-        struct Header {
-            version: u32,
-            pid: c_int,
-        }
-
-        struct Data {
-            effective: u32,
-            permitted: u32,
-            inheritable: u32,
-        }
-
-        let header = Header {
-            version: CAPABILITY_VERSION_3,
-            pid: 0, // equivalent to gettid(),
-        };
-
-        let data = [
-            Data {
-                effective: self.effective as u32,
-                permitted: self.permitted as u32,
-                inheritable: self.inheritable as u32,
-            },
-            Data {
-                effective: (self.effective >> 32) as u32,
-                permitted: (self.permitted >> 32) as u32,
-                inheritable: (self.inheritable >> 32) as u32,
-            },
-        ];
-
-        c_try!(unsafe { libc::syscall(libc::SYS_capset, &header, &data) });
-
-        Ok(())
-    }
-}
-
-/// Helper to enter a process' permission-check environment.
-///
-/// When we execute a syscall on behalf of another process, we should try to trigger as many
-/// permission checks as we can. It is impractical to implement them all manually, so the best
-/// thing to do is cause as many of them to happen on the kernel-side as we can.
-///
-/// We start by entering the process' devices and v2 cgroup. As calls like `mknod()` may be
-/// affected, and access to devices as well.
-///
-/// Then we must enter the mount namespace, chroot and current working directory, in order to get
-/// the correct view of paths.
-///
-/// Next we copy the caller's `umask`.
-///
-/// Then switch over our effective and file system uid and gid. This has 2 reasons: First, it means
-/// we do not need to run `chown()` on files we create, secondly, the user may have dropped
-/// `CAP_DAC_OVERRIDE` / `CAP_DAC_READ_SEARCH` which may have prevented the creation of the file in
-/// the first place (for example, the container program may be a non-root executable with
-/// `cap_mknod=ep` as file-capabilities, in which case we do not want a user to be allowed to run
-/// `mknod()` on a path owned by different user (and checking file system permissions would
-/// require us to handle ACLs, quotas, which are all file system tyep dependent as well, so better
-/// leave all that up to the kernel, too!)).
-///
-/// Next we clone the process' capability set. This is because the process may have dropped
-/// capabilties which under normal conditions would prevent them from executing the syscall.  For
-/// example a process may be executing `mknod()` after having dropped `CAP_MKNOD`.
-#[derive(Clone)]
-#[must_use = "not using UserCaps may be a security issue"]
-pub struct UserCaps<'a> {
-    pidfd: &'a PidFd,
-    apply_uids: bool,
-    euid: libc::uid_t,
-    egid: libc::gid_t,
-    fsuid: libc::uid_t,
-    fsgid: libc::gid_t,
-    capabilities: Capabilities,
-    umask: libc::mode_t,
-    cgroup_v1_devices: Option<OsString>,
-    cgroup_v2: Option<OsString>,
-    apparmor_profile: Option<OsString>,
-}
-
-impl UserCaps<'_> {
-    pub fn new(pidfd: &PidFd) -> Result<UserCaps, Error> {
-        let status = pidfd.get_status()?;
-        let cgroups = pidfd.get_cgroups()?;
-        let apparmor_profile = crate::apparmor::get_label(pidfd)?;
-
-        Ok(UserCaps {
-            pidfd,
-            apply_uids: true,
-            euid: status.uids.euid,
-            egid: status.uids.egid,
-            fsuid: status.uids.fsuid,
-            fsgid: status.uids.fsgid,
-            capabilities: status.capabilities,
-            umask: status.umask,
-            cgroup_v1_devices: cgroups.get("devices").map(|s| s.to_owned()),
-            cgroup_v2: cgroups.v2().map(|s| s.to_owned()),
-            apparmor_profile,
-        })
-    }
-
-    fn apply_cgroups(&self) -> io::Result<()> {
-        fn enter_cgroup(kind: &str, name: &OsStr) -> io::Result<()> {
-            let mut path = OsString::with_capacity(15 + kind.len() + name.len() + 13 + 1);
-            path.push(OsStr::from_bytes(b"/sys/fs/cgroup/"));
-            path.push(kind);
-            path.push(name);
-            path.push(OsStr::from_bytes(b"/cgroup.procs"));
-            std::fs::write(path, b"0")
-        }
-
-        if let Some(ref cg) = self.cgroup_v1_devices {
-            enter_cgroup("devices/", cg)?;
-        }
-
-        if let Some(ref cg) = self.cgroup_v2 {
-            enter_cgroup("unified/", cg)?;
-        }
-
-        Ok(())
-    }
-
-    fn apply_user_caps(&self) -> io::Result<()> {
-        use crate::capability::SecureBits;
-        if self.apply_uids {
-            unsafe {
-                libc::umask(self.umask);
-            }
-            let mut secbits = SecureBits::get_current()?;
-            secbits |= SecureBits::KEEP_CAPS | SecureBits::NO_SETUID_FIXUP;
-            secbits.apply()?;
-            c_try!(unsafe { libc::setegid(self.egid) });
-            c_try!(unsafe { libc::setfsgid(self.fsgid) });
-            c_try!(unsafe { libc::seteuid(self.euid) });
-            c_try!(unsafe { libc::setfsuid(self.fsuid) });
-        }
-        self.capabilities.capset()?;
-        Ok(())
-    }
-
-    pub fn disable_uid_change(&mut self) {
-        self.apply_uids = false;
-    }
-
-    pub fn disable_cgroup_change(&mut self) {
-        self.cgroup_v1_devices = None;
-        self.cgroup_v2 = None;
-    }
-
-    pub fn apply(self, own_pidfd: &PidFd) -> io::Result<()> {
-        self.apply_cgroups()?;
-        self.pidfd.mount_namespace()?.setns()?;
-        self.pidfd.enter_chroot()?;
-        self.pidfd.enter_cwd()?;
-        if let Some(ref label) = self.apparmor_profile {
-            crate::apparmor::set_label(own_pidfd, label)?;
-        }
-        self.apply_user_caps()?;
-        Ok(())
     }
 }

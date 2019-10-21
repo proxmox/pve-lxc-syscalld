@@ -13,7 +13,7 @@ pub mod client;
 pub mod fork;
 pub mod lxcseccomp;
 pub mod nsfd;
-pub mod pidfd;
+pub mod process;
 pub mod seccomp;
 pub mod sys_mknod;
 pub mod sys_quotactl;

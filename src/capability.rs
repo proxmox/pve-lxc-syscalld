@@ -1,5 +1,5 @@
 use std::io;
-use std::os::raw::c_ulong;
+use std::os::raw::{c_int, c_ulong};
 
 bitflags::bitflags! {
     pub struct SecureBits: c_ulong {
@@ -27,5 +27,62 @@ impl SecureBits {
         let bits = c_call!(unsafe { libc::prctl(libc::PR_GET_SECUREBITS) })?;
         Self::from_bits(bits as _)
             .ok_or_else(|| io_format_err!("prctl() returned unknown securebits"))
+    }
+}
+
+#[derive(Clone, Default)]
+pub struct Capabilities {
+    pub inheritable: u64,
+    pub permitted: u64,
+    pub effective: u64,
+    //bounding: u64, // we don't care currently
+}
+
+// Too lazy to bindgen libcap stuff...
+const CAPABILITY_VERSION_3: u32 = 0x2008_0522;
+
+/// Represents process capabilities.
+///
+/// This can be used to change the process' capability sets (if permitted by the kernel).
+impl Capabilities {
+    // We currently don't implement capget as it takes a pid which is racy on kernels without pidfd
+    // support. Later on we might support a `capget(&PidFd)` method?
+
+    /// Change our process capabilities. This does not include the bounding set.
+    pub fn capset(&self) -> io::Result<()> {
+        #![allow(dead_code)]
+        // kernel abi:
+        struct Header {
+            version: u32,
+            pid: c_int,
+        }
+
+        struct Data {
+            effective: u32,
+            permitted: u32,
+            inheritable: u32,
+        }
+
+        let header = Header {
+            version: CAPABILITY_VERSION_3,
+            pid: 0, // equivalent to gettid(),
+        };
+
+        let data = [
+            Data {
+                effective: self.effective as u32,
+                permitted: self.permitted as u32,
+                inheritable: self.inheritable as u32,
+            },
+            Data {
+                effective: (self.effective >> 32) as u32,
+                permitted: (self.permitted >> 32) as u32,
+                inheritable: (self.inheritable >> 32) as u32,
+            },
+        ];
+
+        c_try!(unsafe { libc::syscall(libc::SYS_capset, &header, &data) });
+
+        Ok(())
     }
 }

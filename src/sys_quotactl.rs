@@ -8,7 +8,7 @@ use nix::errno::Errno;
 
 use crate::fork::forking_syscall;
 use crate::lxcseccomp::ProxyMessageBuffer;
-use crate::pidfd::{IdMap, PidFd};
+use crate::process::{IdMap, PidFd};
 use crate::sc_libc_try;
 use crate::syscall::SyscallStatus;
 

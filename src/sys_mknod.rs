@@ -7,7 +7,7 @@ use nix::sys::stat;
 
 use crate::fork::forking_syscall;
 use crate::lxcseccomp::ProxyMessageBuffer;
-use crate::pidfd::PidFd;
+use crate::process::PidFd;
 use crate::sc_libc_try;
 use crate::syscall::SyscallStatus;
 use crate::tools::Fd;
