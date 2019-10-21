@@ -101,21 +101,15 @@ impl PidFd {
     }
 
     pub fn mount_namespace(&self) -> io::Result<NsFd<ns_type::Mount>> {
-        NsFd::openat(self.0, unsafe {
-            CStr::from_bytes_with_nul_unchecked(b"ns/mnt\0")
-        })
+        NsFd::openat(self.0, c_str!("ns/mnt"))
     }
 
     pub fn cgroup_namespace(&self) -> io::Result<NsFd<ns_type::Cgroup>> {
-        NsFd::openat(self.0, unsafe {
-            CStr::from_bytes_with_nul_unchecked(b"ns/cgroup\0")
-        })
+        NsFd::openat(self.0, c_str!("ns/cgroup"))
     }
 
     pub fn user_namespace(&self) -> io::Result<NsFd<ns_type::User>> {
-        NsFd::openat(self.0, unsafe {
-            CStr::from_bytes_with_nul_unchecked(b"ns/user\0")
-        })
+        NsFd::openat(self.0, c_str!("ns/user"))
     }
 
     fn fd(&self, path: &CStr, flags: c_int, mode: c_int) -> io::Result<Fd> {
@@ -130,11 +124,7 @@ impl PidFd {
     }
 
     pub fn fd_cwd(&self) -> io::Result<Fd> {
-        self.fd(
-            unsafe { CStr::from_bytes_with_nul_unchecked(b"cwd\0") },
-            libc::O_DIRECTORY,
-            0,
-        )
+        self.fd(c_str!("cwd"), libc::O_DIRECTORY, 0)
     }
 
     pub fn fd_num(&self, num: RawFd, flags: c_int) -> io::Result<Fd> {
@@ -178,8 +168,7 @@ impl PidFd {
     }
 
     fn read_pid(&self) -> io::Result<pid_t> {
-        let reader =
-            self.open_buffered(unsafe { CStr::from_bytes_with_nul_unchecked(b"status\0") })?;
+        let reader = self.open_buffered(c_str!("status"))?;
 
         for line in reader.lines() {
             let line = line?;
@@ -208,8 +197,7 @@ impl PidFd {
     }
 
     pub fn get_status(&self) -> io::Result<ProcStatus> {
-        let reader =
-            self.open_buffered(unsafe { CStr::from_bytes_with_nul_unchecked(b"status\0") })?;
+        let reader = self.open_buffered(c_str!("status"))?;
 
         #[inline]
         fn check_u64_hex(value: Option<&str>) -> io::Result<u64> {
@@ -269,8 +257,7 @@ impl PidFd {
     }
 
     pub fn get_cgroups(&self) -> Result<CGroups, Error> {
-        let reader =
-            self.open_buffered(unsafe { CStr::from_bytes_with_nul_unchecked(b"cgroup\0") })?;
+        let reader = self.open_buffered(c_str!("cgroup"))?;
 
         let mut cgroups = CGroups::new();
 
@@ -316,11 +303,11 @@ impl PidFd {
     }
 
     pub fn get_uid_map(&self) -> Result<IdMap, Error> {
-        self.get_uid_gid_map(unsafe { CStr::from_bytes_with_nul_unchecked(b"uid_map\0") })
+        self.get_uid_gid_map(c_str!("uid_map"))
     }
 
     pub fn get_gid_map(&self) -> Result<IdMap, Error> {
-        self.get_uid_gid_map(unsafe { CStr::from_bytes_with_nul_unchecked(b"gid_map\0") })
+        self.get_uid_gid_map(c_str!("gid_map"))
     }
 
     pub fn read_file(&self, file: &CStr) -> io::Result<Vec<u8>> {
