@@ -22,9 +22,9 @@ pub mod tools;
 
 use io_uring::socket::SeqPacketListener;
 
-static mut EXECUTOR: *mut futures::executor::ThreadPool = std::ptr::null_mut();
+static mut EXECUTOR: *mut futures_executor::ThreadPool = std::ptr::null_mut();
 
-pub fn executor() -> &'static futures::executor::ThreadPool {
+pub fn executor() -> &'static futures_executor::ThreadPool {
     unsafe { &*EXECUTOR }
 }
 
@@ -33,7 +33,7 @@ pub fn spawn(fut: impl Future<Output = ()> + Send + 'static) {
 }
 
 fn main() {
-    let mut executor = futures::executor::ThreadPool::new().expect("spawning worker threadpool");
+    let mut executor = futures_executor::ThreadPool::new().expect("spawning worker threadpool");
     unsafe {
         EXECUTOR = &mut executor;
     }
