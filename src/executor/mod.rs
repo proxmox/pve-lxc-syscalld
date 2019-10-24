@@ -1,5 +1,6 @@
 use std::io;
 
+pub mod ring;
 pub mod slot_list;
 pub mod thread_pool;
 

@@ -63,7 +63,11 @@ impl ThreadPoolInner {
     }
 
     fn queue_task(&self, task: usize) {
-        //
+        let threads = self.threads.lock().unwrap();
+        //let shortest = threads
+        //    .iter()
+        //    .min_by(|a, b| a.task_count().cmp(b.task_count()))
+        //    .expect("thread pool should not be empty");
     }
 }
 
