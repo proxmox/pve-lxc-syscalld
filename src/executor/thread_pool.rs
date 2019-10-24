@@ -4,9 +4,11 @@ use std::sync::{mpsc, Arc, Mutex};
 use std::thread::JoinHandle;
 
 use super::num_cpus;
+use super::ring::Ring;
 use super::slot_list::SlotList;
 
 type BoxFut = Box<dyn Future<Output = ()> + Send + 'static>;
+type TaskId = usize;
 
 pub struct ThreadPool {
     inner: Arc<ThreadPoolInner>,
@@ -25,6 +27,7 @@ pub struct Thread {
 
 pub struct ThreadInner {
     id: usize,
+    ring: Ring<TaskId>,
 }
 
 pub struct Work {}
@@ -57,12 +60,15 @@ impl ThreadPool {
 }
 
 impl ThreadPoolInner {
-    fn spawn(&self, future: BoxFut) {
-        let mut tasks = self.tasks.lock().unwrap();
-        self.queue_task(tasks.add(future));
+    fn create_task(&self, future: BoxFut) -> TaskId {
+        self.tasks.lock().unwrap().add(future)
     }
 
-    fn queue_task(&self, task: usize) {
+    fn spawn(&self, future: BoxFut) {
+        self.queue_task(self.create_task(future))
+    }
+
+    fn queue_task(&self, task: TaskId) {
         let threads = self.threads.lock().unwrap();
         //let shortest = threads
         //    .iter()
@@ -75,7 +81,10 @@ impl Thread {
     fn new(pool: Arc<ThreadPoolInner>, id: usize) -> Self {
         let (queue_sender, queue_receiver) = mpsc::channel();
 
-        let inner = Arc::new(ThreadInner { id });
+        let inner = Arc::new(ThreadInner {
+            id,
+            ring: Ring::new(32),
+        });
 
         let handle = std::thread::spawn({
             let inner = Arc::clone(&inner);

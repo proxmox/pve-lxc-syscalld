@@ -1,7 +1,6 @@
 use std::mem::MaybeUninit;
 use std::ptr;
 use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::Arc;
 
 pub struct Ring<T> {
     head: usize,
@@ -11,7 +10,7 @@ pub struct Ring<T> {
 }
 
 impl<T> Ring<T> {
-    pub fn new(size: usize) -> Arc<Self> {
+    pub fn new(size: usize) -> Self {
         if size < 2 || size.count_ones() != 1 {
             panic!("Ring size must be a power of two!");
         }
@@ -21,12 +20,12 @@ impl<T> Ring<T> {
             data.push(MaybeUninit::uninit())
         }
 
-        Arc::new(Self {
+        Self {
             head: 0,
             tail: 0,
             mask: size - 1,
             data: data.into_boxed_slice(),
-        })
+        }
     }
 
     #[inline]
