@@ -10,6 +10,7 @@ mod macros;
 pub mod apparmor;
 pub mod capability;
 pub mod client;
+pub mod executor;
 pub mod fork;
 pub mod lxcseccomp;
 pub mod nsfd;
