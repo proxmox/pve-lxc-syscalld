@@ -1,5 +1,6 @@
 use std::io;
 
+pub mod slot_list;
 pub mod thread_pool;
 
 pub fn num_cpus() -> io::Result<usize> {
