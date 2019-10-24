@@ -8,7 +8,6 @@ authors = [
 
 [dependencies]
 bitflags = "1.1"
-errno = "0.2"
 failure = { version = "0.1", default-features = false, features = ["std"] }
 futures-executor-preview = "0.3.0-alpha"
 lazy_static = "1.3"
