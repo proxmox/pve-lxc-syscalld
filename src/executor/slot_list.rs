@@ -28,4 +28,8 @@ impl<T> SlotList<T> {
         self.free_slots.push(id);
         entry
     }
+
+    pub fn get(&self, id: usize) -> Option<&T> {
+        self.tasks[id].as_ref()
+    }
 }
