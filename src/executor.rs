@@ -87,7 +87,7 @@ impl TaskQueue {
 }
 
 pub struct ThreadPool {
-    threads: Mutex<Vec<JoinHandle<()>>>,
+    _threads: Mutex<Vec<JoinHandle<()>>>,
     queue: Arc<TaskQueue>,
 }
 
@@ -106,7 +106,7 @@ impl ThreadPool {
         }
 
         Ok(Self {
-            threads: Mutex::new(threads),
+            _threads: Mutex::new(threads),
             queue,
         })
     }
