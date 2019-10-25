@@ -93,7 +93,7 @@ pub struct ThreadPool {
 
 impl ThreadPool {
     pub fn new() -> io::Result<Self> {
-        let count = 2; //num_cpus()?;
+        let count = num_cpus()?;
 
         let queue = Arc::new(TaskQueue::new());
 
@@ -179,6 +179,7 @@ fn thread_main(task_queue: Arc<TaskQueue>, _thread_id: usize) {
         let mut task_future = task.0.future.lock().unwrap();
         match task_future.take() {
             Some(mut future) => {
+                //eprintln!("Thread {} has some work!", thread_id);
                 let pin = unsafe { Pin::new_unchecked(&mut *future) };
                 match pin.poll(&mut context) {
                     Poll::Ready(()) => (), // done with that task
@@ -226,7 +227,7 @@ unsafe fn waker_drop_fn(this: *const ()) {
     let _this = Task::from_raw(this as *const TaskInner);
 }
 
-pub fn num_cpus() -> io::Result<usize> {
+fn num_cpus() -> io::Result<usize> {
     let rc = unsafe { libc::sysconf(libc::_SC_NPROCESSORS_ONLN) };
     if rc < 0 {
         Err(io::Error::last_os_error())
