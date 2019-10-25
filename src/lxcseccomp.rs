@@ -137,7 +137,7 @@ impl ProxyMessageBuffer {
             .recvmsg_vectored(&mut iovec, Some(&mut fd_cmsg_buf))
             .await?;
 
-        if res.len() == 0 {
+        if res.is_empty() {
             return Ok(false);
         }
 
@@ -155,7 +155,11 @@ impl ProxyMessageBuffer {
         let fds: Vec<Fd> = cmsg
             .data
             .chunks_exact(mem::size_of::<RawFd>())
-            .map(|chunk| unsafe { Fd::from_raw_fd(std::ptr::read_unaligned(chunk.as_ptr() as _)) })
+            .map(|chunk| unsafe {
+                // clippy bug
+                #[allow(clippy::cast_ptr_alignment)]
+                Fd::from_raw_fd(std::ptr::read_unaligned(chunk.as_ptr() as _))
+            })
             .collect();
 
         if fds.len() != 2 {

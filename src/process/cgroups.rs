@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::ffi::{OsStr, OsString};
 
+#[derive(Default)]
 pub struct CGroups {
     pub v1: HashMap<String, OsString>,
     pub v2: Option<OsString>,
@@ -8,10 +9,7 @@ pub struct CGroups {
 
 impl CGroups {
     pub fn new() -> Self {
-        Self {
-            v1: HashMap::new(),
-            v2: None,
-        }
+        Self::default()
     }
 
     pub fn get(&self, name: &str) -> Option<&OsStr> {

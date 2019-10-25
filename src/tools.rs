@@ -33,6 +33,10 @@ pub mod vec {
     ///     v.set_len(len);
     /// }
     /// ```
+    ///
+    /// # Safety
+    ///
+    /// This is generally safe to call, but the contents of the vector are undefined.
     #[inline]
     pub unsafe fn uninitialized(len: usize) -> Vec<u8> {
         let mut out = Vec::with_capacity(len);

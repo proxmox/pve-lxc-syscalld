@@ -38,6 +38,12 @@ impl PidFd {
         Ok(Self(fd, pid))
     }
 
+    /// Turn a valid pid file descriptor into a PidFd.
+    ///
+    /// # Safety
+    ///
+    /// The file descriptor must already be a valid pidfd, this is not checked. This function only
+    /// fails if reading the pid from the pidfd's proc entry fails.
     pub unsafe fn try_from_fd(fd: Fd) -> io::Result<Self> {
         let mut this = Self(fd.into_raw_fd(), -1 as pid_t);
         let pid = this.read_pid()?;
