@@ -16,6 +16,7 @@ pub mod fork;
 pub mod lxcseccomp;
 pub mod nsfd;
 pub mod process;
+pub mod reactor;
 pub mod rw_traits;
 pub mod seccomp;
 pub mod sys_mknod;
