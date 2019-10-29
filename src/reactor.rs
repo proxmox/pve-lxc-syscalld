@@ -1,4 +1,5 @@
 use std::io;
+use std::os::unix::io::RawFd;
 use std::sync::{mpsc, Arc};
 use std::thread::JoinHandle;
 
@@ -14,7 +15,7 @@ pub struct Reactor {
 }
 
 impl Reactor {
-    pub fn new() -> io::Error<Self> {
+    pub fn new() -> io::Result<Self> {
         let epoll = Arc::new(Epoll::new()?);
 
         let (send_remove, recv_remove) = mpsc::channel();
