@@ -1,8 +1,13 @@
+use std::convert::TryFrom;
 use std::io;
+use std::time::Duration;
 use std::os::raw::c_int;
 use std::os::unix::io::{AsRawFd, FromRawFd, RawFd};
 
 use crate::tools::Fd;
+use crate::error::io_err_other;
+
+pub type EpollEvent = libc::epoll_event;
 
 pub struct Epoll {
     fd: Fd,
@@ -53,5 +58,17 @@ impl Epoll {
             )
         });
         Ok(())
+    }
+
+    pub fn wait(&self, event_buf: &mut [EpollEvent], timeout: Option<Duration>) -> io::Result<usize> {
+        let millis = timeout
+            .map(|t| c_int::try_from(t.as_millis()))
+            .transpose()
+            .map_err(io_err_other)?
+            .unwrap_or(-1);
+        let epfd = self.fd.as_raw_fd();
+        let buf_len = c_int::try_from(event_buf.len()).map_err(io_err_other)?;
+        let rc = c_try!(unsafe { libc::epoll_wait(epfd, event_buf.as_mut_ptr(), buf_len, millis) });
+        Ok(rc as usize)
     }
 }

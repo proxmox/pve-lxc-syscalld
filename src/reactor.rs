@@ -35,5 +35,7 @@ impl Reactor {
     fn thread_main(epoll: Arc<Epoll>, removals: mpsc::Receiver<RawFd>) {
         let _ = epoll;
         let _ = removals;
+        loop {
+        }
     }
 }
