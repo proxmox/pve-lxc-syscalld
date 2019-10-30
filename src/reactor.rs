@@ -2,7 +2,7 @@ use std::convert::TryFrom;
 use std::io;
 use std::os::unix::io::{AsRawFd, RawFd};
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, Once};
 use std::task::{Context, Poll, Waker};
 use std::thread::JoinHandle;
 
@@ -10,6 +10,17 @@ use crate::epoll::{Epoll, EpollEvent, EPOLLERR, EPOLLET, EPOLLHUP, EPOLLIN, EPOL
 use crate::error::io_err_other;
 use crate::poll_fn::poll_fn;
 use crate::tools::Fd;
+
+static START: Once = Once::new();
+static mut REACTOR: Option<Arc<Reactor>> = None;
+
+pub fn default() -> Arc<Reactor> {
+    START.call_once(|| unsafe {
+        let reactor = Reactor::new().expect("setup main epoll reactor");
+        REACTOR = Some(reactor);
+    });
+    unsafe { Arc::clone(REACTOR.as_ref().unwrap()) }
+}
 
 pub struct Reactor {
     epoll: Arc<Epoll>,
