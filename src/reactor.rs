@@ -161,12 +161,11 @@ impl PolledFd {
         let registration = reactor.register(fd.as_raw_fd())?;
         Ok(Self { fd, registration })
     }
-}
 
-impl PolledFd {
-    pub fn poll_read(&mut self, data: &mut [u8], cx: &mut Context) -> Poll<io::Result<usize>> {
-        let fd = self.fd.as_raw_fd();
-        let size = libc::size_t::try_from(data.len()).map_err(io_err_other)?;
+    pub fn wrap_read<T, F>(&mut self, cx: &mut Context, func: F) -> Poll<io::Result<T>>
+    where
+        F: FnOnce() -> io::Result<T>,
+    {
         let mut read_waker = self
             .registration
             .inner
@@ -175,8 +174,8 @@ impl PolledFd {
             .read_waker
             .lock()
             .unwrap();
-        match c_result!(unsafe { libc::read(fd, data.as_mut_ptr() as *mut libc::c_void, size) }) {
-            Ok(got) => Poll::Ready(Ok(got as usize)),
+        match func() {
+            Ok(out) => Poll::Ready(Ok(out)),
             Err(ref err) if err.kind() == io::ErrorKind::WouldBlock => {
                 *read_waker = Some(cx.waker().clone());
                 Poll::Pending
@@ -185,13 +184,10 @@ impl PolledFd {
         }
     }
 
-    pub async fn read(&mut self, data: &mut [u8]) -> io::Result<usize> {
-        poll_fn(move |cx| self.poll_read(data, cx)).await
-    }
-
-    pub fn poll_write(&mut self, data: &[u8], cx: &mut Context) -> Poll<io::Result<usize>> {
-        let fd = self.fd.as_raw_fd();
-        let size = libc::size_t::try_from(data.len()).map_err(io_err_other)?;
+    pub fn wrap_write<T, F>(&mut self, cx: &mut Context, func: F) -> Poll<io::Result<T>>
+    where
+        F: FnOnce() -> io::Result<T>,
+    {
         let mut write_waker = self
             .registration
             .inner
@@ -200,14 +196,38 @@ impl PolledFd {
             .write_waker
             .lock()
             .unwrap();
-        match c_result!(unsafe { libc::write(fd, data.as_ptr() as *const libc::c_void, size) }) {
-            Ok(got) => Poll::Ready(Ok(got as usize)),
+        match func() {
+            Ok(out) => Poll::Ready(Ok(out)),
             Err(ref err) if err.kind() == io::ErrorKind::WouldBlock => {
                 *write_waker = Some(cx.waker().clone());
                 Poll::Pending
             }
             Err(err) => Poll::Ready(Err(err)),
         }
+    }
+}
+
+impl PolledFd {
+    pub fn poll_read(&mut self, cx: &mut Context, data: &mut [u8]) -> Poll<io::Result<usize>> {
+        let size = libc::size_t::try_from(data.len()).map_err(io_err_other)?;
+        let fd = self.fd.as_raw_fd();
+        self.wrap_read(cx, || {
+            c_result!(unsafe { libc::read(fd, data.as_mut_ptr() as *mut libc::c_void, size) })
+                .map(|res| res as usize)
+        })
+    }
+
+    pub async fn read(&mut self, data: &mut [u8]) -> io::Result<usize> {
+        poll_fn(move |cx| self.poll_read(cx, data)).await
+    }
+
+    pub fn poll_write(&mut self, data: &[u8], cx: &mut Context) -> Poll<io::Result<usize>> {
+        let fd = self.fd.as_raw_fd();
+        let size = libc::size_t::try_from(data.len()).map_err(io_err_other)?;
+        self.wrap_write(cx, || {
+            c_result!(unsafe { libc::write(fd, data.as_ptr() as *const libc::c_void, size) })
+                .map(|res| res as usize)
+        })
     }
 
     pub async fn write(&mut self, data: &[u8]) -> io::Result<usize> {
