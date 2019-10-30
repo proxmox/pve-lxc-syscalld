@@ -9,6 +9,11 @@ use crate::error::io_err_other;
 
 pub type EpollEvent = libc::epoll_event;
 
+pub const EPOLLIN: u32 = libc::EPOLLIN as u32;
+pub const EPOLLOUT: u32 = libc::EPOLLOUT as u32;
+pub const EPOLLERR: u32 = libc::EPOLLERR as u32;
+pub const EPOLLHUP: u32 = libc::EPOLLHUP as u32;
+
 pub struct Epoll {
     fd: Fd,
 }
@@ -40,15 +45,15 @@ impl Epoll {
         Ok(())
     }
 
-    fn add_fd(&self, fd: RawFd, events: u32, data: u64) -> io::Result<()> {
+    pub fn add_fd(&self, fd: RawFd, events: u32, data: u64) -> io::Result<()> {
         self.addmod_fd(libc::EPOLL_CTL_ADD, fd, events, data)
     }
 
-    fn modify_fd(&self, fd: RawFd, events: u32, data: u64) -> io::Result<()> {
+    pub fn modify_fd(&self, fd: RawFd, events: u32, data: u64) -> io::Result<()> {
         self.addmod_fd(libc::EPOLL_CTL_MOD, fd, events, data)
     }
 
-    fn remove_fd(&self, fd: RawFd) -> io::Result<()> {
+    pub fn remove_fd(&self, fd: RawFd) -> io::Result<()> {
         c_try!(unsafe {
             libc::epoll_ctl(
                 self.fd.as_raw_fd(),
