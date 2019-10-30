@@ -5,7 +5,7 @@ use std::sync::{Arc, Mutex};
 use std::task::{Context, Poll, Waker};
 use std::thread::JoinHandle;
 
-use crate::epoll::{Epoll, EpollEvent, EPOLLERR, EPOLLHUP, EPOLLIN, EPOLLOUT};
+use crate::epoll::{Epoll, EpollEvent, EPOLLERR, EPOLLET, EPOLLHUP, EPOLLIN, EPOLLOUT};
 use crate::error::io_err_other;
 use crate::poll_fn::poll_fn;
 use crate::tools::Fd;
@@ -102,7 +102,8 @@ impl Reactor {
             inner_ptr as *mut RegistrationInner as usize as u64
         };
 
-        self.epoll.add_fd(fd, EPOLLIN | EPOLLOUT, inner_ptr)?;
+        self.epoll
+            .add_fd(fd, EPOLLIN | EPOLLOUT | EPOLLET, inner_ptr)?;
 
         Ok(Registration { inner: Some(inner) })
     }

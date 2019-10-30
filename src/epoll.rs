@@ -1,15 +1,16 @@
 use std::convert::TryFrom;
 use std::io;
-use std::time::Duration;
 use std::os::raw::c_int;
 use std::os::unix::io::{AsRawFd, FromRawFd, RawFd};
+use std::time::Duration;
 
-use crate::tools::Fd;
 use crate::error::io_err_other;
+use crate::tools::Fd;
 
 pub type EpollEvent = libc::epoll_event;
 
 pub const EPOLLIN: u32 = libc::EPOLLIN as u32;
+pub const EPOLLET: u32 = libc::EPOLLET as u32;
 pub const EPOLLOUT: u32 = libc::EPOLLOUT as u32;
 pub const EPOLLERR: u32 = libc::EPOLLERR as u32;
 pub const EPOLLHUP: u32 = libc::EPOLLHUP as u32;
@@ -65,7 +66,11 @@ impl Epoll {
         Ok(())
     }
 
-    pub fn wait(&self, event_buf: &mut [EpollEvent], timeout: Option<Duration>) -> io::Result<usize> {
+    pub fn wait(
+        &self,
+        event_buf: &mut [EpollEvent],
+        timeout: Option<Duration>,
+    ) -> io::Result<usize> {
         let millis = timeout
             .map(|t| c_int::try_from(t.as_millis()))
             .transpose()
