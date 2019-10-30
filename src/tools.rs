@@ -21,6 +21,20 @@ impl FromRawFd for Fd {
     }
 }
 
+impl Fd {
+    pub fn set_nonblocking(&self, nb: bool) -> std::io::Result<()> {
+        let fd = self.as_raw_fd();
+        let flags = c_try!(unsafe { libc::fcntl(fd, libc::F_GETFL) });
+        let flags = if nb {
+            flags | libc::O_NONBLOCK
+        } else {
+            flags & !libc::O_NONBLOCK
+        };
+        c_try!(unsafe { libc::fcntl(fd, libc::F_SETFL, flags) });
+        Ok(())
+    }
+}
+
 /// Byte vector utilities.
 pub mod vec {
     /// Create an uninitialized byte vector of a specific size.
