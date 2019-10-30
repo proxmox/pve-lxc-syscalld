@@ -153,7 +153,11 @@ pub struct PolledFd {
 }
 
 impl PolledFd {
-    pub fn new(fd: Fd, reactor: Arc<Reactor>) -> io::Result<Self> {
+    pub fn new(fd: Fd) -> io::Result<Self> {
+        Self::new_with_reactor(fd, crate::reactor::default())
+    }
+
+    pub fn new_with_reactor(fd: Fd, reactor: Arc<Reactor>) -> io::Result<Self> {
         let registration = reactor.register(fd.as_raw_fd())?;
         Ok(Self { fd, registration })
     }
