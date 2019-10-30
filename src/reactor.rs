@@ -10,13 +10,6 @@ use crate::error::io_err_other;
 use crate::poll_fn::poll_fn;
 use crate::tools::Fd;
 
-pub struct AssertSync<T>(pub T);
-unsafe impl<T> Sync for AssertSync<T> {}
-
-pub const READY_IN: u32 = 0b001;
-pub const READY_OUT: u32 = 0b010;
-pub const READY_ERR: u32 = 0b100;
-
 pub struct Reactor {
     epoll: Arc<Epoll>,
     removed: Mutex<Vec<(RawFd, Box<RegistrationInner>)>>,
