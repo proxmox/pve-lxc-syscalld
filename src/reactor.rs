@@ -171,4 +171,29 @@ impl PolledFd {
     pub async fn read(&mut self, data: &mut [u8]) -> io::Result<usize> {
         poll_fn(move |cx| self.poll_read(data, cx)).await
     }
+
+    pub fn poll_write(&mut self, data: &[u8], cx: &mut Context) -> Poll<io::Result<usize>> {
+        let fd = self.fd.as_raw_fd();
+        let size = libc::size_t::try_from(data.len()).map_err(io_err_other)?;
+        let mut write_waker = self
+            .registration
+            .inner
+            .as_ref()
+            .unwrap()
+            .write_waker
+            .lock()
+            .unwrap();
+        match c_result!(unsafe { libc::write(fd, data.as_ptr() as *const libc::c_void, size) }) {
+            Ok(got) => Poll::Ready(Ok(got as usize)),
+            Err(ref err) if err.kind() == io::ErrorKind::WouldBlock => {
+                *write_waker = Some(cx.waker().clone());
+                Poll::Pending
+            }
+            Err(err) => Poll::Ready(Err(err)),
+        }
+    }
+
+    pub async fn write(&mut self, data: &[u8]) -> io::Result<usize> {
+        poll_fn(move |cx| self.poll_write(data, cx)).await
+    }
 }
