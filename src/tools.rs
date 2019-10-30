@@ -64,3 +64,10 @@ impl<T: FromRawFd> FromFd for T {
         unsafe { Self::from_raw_fd(fd.into_raw_fd()) }
     }
 }
+
+/// This is totally unsafe. Only use this when you know what you're doing.
+#[derive(Debug, Clone)]
+#[repr(transparent)]
+pub struct AssertSendSync<T>(pub T);
+unsafe impl<T> Send for AssertSendSync<T> {}
+unsafe impl<T> Sync for AssertSendSync<T> {}
