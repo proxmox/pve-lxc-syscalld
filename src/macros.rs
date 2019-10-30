@@ -49,7 +49,7 @@ macro_rules! file_descriptor_impl {
     };
 }
 
-macro_rules! c_call {
+macro_rules! c_result {
     ($expr:expr) => {{
         let res = $expr;
         if res == -1 {
@@ -62,7 +62,7 @@ macro_rules! c_call {
 
 macro_rules! c_try {
     ($expr:expr) => {
-        c_call!($expr)?
+        c_result!($expr)?
     };
 }
 

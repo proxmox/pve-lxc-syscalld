@@ -19,12 +19,12 @@ bitflags::bitflags! {
 
 impl SecureBits {
     pub fn apply(self) -> io::Result<()> {
-        c_call!(unsafe { libc::prctl(libc::PR_SET_SECUREBITS, self.bits()) })?;
+        c_result!(unsafe { libc::prctl(libc::PR_SET_SECUREBITS, self.bits()) })?;
         Ok(())
     }
 
     pub fn get_current() -> io::Result<Self> {
-        let bits = c_call!(unsafe { libc::prctl(libc::PR_GET_SECUREBITS) })?;
+        let bits = c_result!(unsafe { libc::prctl(libc::PR_GET_SECUREBITS) })?;
         Self::from_bits(bits as _)
             .ok_or_else(|| io_format_err!("prctl() returned unknown securebits"))
     }

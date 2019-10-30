@@ -106,7 +106,7 @@ impl Fork {
         let mut status: c_int = -1;
 
         loop {
-            match c_call!(unsafe { libc::waitpid(my_pid, &mut status, 0) }) {
+            match c_result!(unsafe { libc::waitpid(my_pid, &mut status, 0) }) {
                 Ok(pid) if pid == my_pid => break,
                 Ok(_other) => continue,
                 Err(ref err) if err.kind() == io::ErrorKind::Interrupted => continue,
