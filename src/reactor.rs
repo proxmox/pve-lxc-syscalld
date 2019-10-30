@@ -6,6 +6,7 @@ use std::task::{Context, Poll, Waker};
 use std::thread::JoinHandle;
 
 use crate::epoll::{Epoll, EpollEvent, EPOLLERR, EPOLLET, EPOLLHUP, EPOLLIN, EPOLLOUT};
+use crate::error::io_err_other;
 use crate::tools::Fd;
 
 static START: Once = Once::new();
@@ -160,6 +161,7 @@ impl AsRawFd for PolledFd {
 
 impl PolledFd {
     pub fn new(fd: Fd) -> io::Result<Self> {
+        fd.set_nonblocking(true).map_err(io_err_other)?;
         Self::new_with_reactor(fd, crate::reactor::default())
     }
 
