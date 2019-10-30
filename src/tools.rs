@@ -22,16 +22,12 @@ impl FromRawFd for Fd {
 }
 
 impl Fd {
-    pub fn set_nonblocking(&self, nb: bool) -> std::io::Result<()> {
-        let fd = self.as_raw_fd();
-        let flags = c_try!(unsafe { libc::fcntl(fd, libc::F_GETFL) });
-        let flags = if nb {
-            flags | libc::O_NONBLOCK
-        } else {
-            flags & !libc::O_NONBLOCK
-        };
-        c_try!(unsafe { libc::fcntl(fd, libc::F_SETFL, flags) });
-        Ok(())
+    pub fn set_nonblocking(&self, nb: bool) -> nix::Result<libc::c_int> {
+        use nix::fcntl;
+        let mut flags =
+            fcntl::OFlag::from_bits(fcntl::fcntl(self.0, fcntl::FcntlArg::F_GETFL)?).unwrap();
+        flags.set(fcntl::OFlag::O_NONBLOCK, nb);
+        fcntl::fcntl(self.0, fcntl::FcntlArg::F_SETFL(flags))
     }
 }
 
