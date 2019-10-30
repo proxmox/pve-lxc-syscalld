@@ -16,6 +16,7 @@ pub mod executor;
 pub mod fork;
 pub mod lxcseccomp;
 pub mod nsfd;
+pub mod pipe;
 pub mod poll_fn;
 pub mod process;
 pub mod reactor;

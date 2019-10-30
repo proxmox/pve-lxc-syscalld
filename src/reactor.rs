@@ -1,4 +1,3 @@
-use std::convert::TryFrom;
 use std::io;
 use std::os::unix::io::{AsRawFd, RawFd};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -7,8 +6,6 @@ use std::task::{Context, Poll, Waker};
 use std::thread::JoinHandle;
 
 use crate::epoll::{Epoll, EpollEvent, EPOLLERR, EPOLLET, EPOLLHUP, EPOLLIN, EPOLLOUT};
-use crate::error::io_err_other;
-use crate::poll_fn::poll_fn;
 use crate::tools::Fd;
 
 static START: Once = Once::new();
@@ -152,6 +149,15 @@ pub struct PolledFd {
     registration: Registration,
 }
 
+// NOTE: For IntoRawFd we'd need to deregister from the reactor explicitly!
+
+impl AsRawFd for PolledFd {
+    #[inline]
+    fn as_raw_fd(&self) -> RawFd {
+        self.fd.as_raw_fd()
+    }
+}
+
 impl PolledFd {
     pub fn new(fd: Fd) -> io::Result<Self> {
         Self::new_with_reactor(fd, crate::reactor::default())
@@ -204,33 +210,5 @@ impl PolledFd {
             }
             Err(err) => Poll::Ready(Err(err)),
         }
-    }
-}
-
-impl PolledFd {
-    pub fn poll_read(&mut self, cx: &mut Context, data: &mut [u8]) -> Poll<io::Result<usize>> {
-        let size = libc::size_t::try_from(data.len()).map_err(io_err_other)?;
-        let fd = self.fd.as_raw_fd();
-        self.wrap_read(cx, || {
-            c_result!(unsafe { libc::read(fd, data.as_mut_ptr() as *mut libc::c_void, size) })
-                .map(|res| res as usize)
-        })
-    }
-
-    pub async fn read(&mut self, data: &mut [u8]) -> io::Result<usize> {
-        poll_fn(move |cx| self.poll_read(cx, data)).await
-    }
-
-    pub fn poll_write(&mut self, data: &[u8], cx: &mut Context) -> Poll<io::Result<usize>> {
-        let fd = self.fd.as_raw_fd();
-        let size = libc::size_t::try_from(data.len()).map_err(io_err_other)?;
-        self.wrap_write(cx, || {
-            c_result!(unsafe { libc::write(fd, data.as_ptr() as *const libc::c_void, size) })
-                .map(|res| res as usize)
-        })
-    }
-
-    pub async fn write(&mut self, data: &[u8]) -> io::Result<usize> {
-        poll_fn(move |cx| self.poll_write(data, cx)).await
     }
 }
