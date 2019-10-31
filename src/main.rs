@@ -10,7 +10,6 @@ mod macros;
 pub mod apparmor;
 pub mod capability;
 pub mod client;
-pub mod epoll;
 pub mod error;
 pub mod executor;
 pub mod fork;

@@ -5,8 +5,8 @@ use std::sync::{Arc, Mutex, Once};
 use std::task::{Context, Poll, Waker};
 use std::thread::JoinHandle;
 
-use crate::epoll::{Epoll, EpollEvent, EPOLLERR, EPOLLET, EPOLLHUP, EPOLLIN, EPOLLOUT};
 use crate::error::io_err_other;
+use crate::io::epoll::{Epoll, EpollEvent, EPOLLERR, EPOLLET, EPOLLHUP, EPOLLIN, EPOLLOUT};
 use crate::tools::Fd;
 
 static START: Once = Once::new();
