@@ -8,14 +8,16 @@ use std::os::unix::io::{FromRawFd, RawFd};
 use std::{io, mem};
 
 use failure::{bail, format_err, Error};
-use io_uring::socket::SeqPacketSocket;
 use lazy_static::lazy_static;
 use libc::pid_t;
 use nix::errno::Errno;
 
+use crate::io::cmsg;
+use crate::io::seq_packet::SeqPacketSocket;
+use crate::iovec::{IoVec, IoVecMut};
 use crate::process::PidFd;
 use crate::seccomp::{SeccompNotif, SeccompNotifResp, SeccompNotifSizes};
-use crate::tools::{Fd, FromFd, IoVec, IoVecMut};
+use crate::tools::{Fd, FromFd};
 
 /// Seccomp notification proxy message sent by the lxc monitor.
 ///
@@ -132,19 +134,18 @@ impl ProxyMessageBuffer {
             self.cookie_buf.set_len(0);
         }
 
-        let mut fd_cmsg_buf = io_uring::socket::cmsg::buffer::<[RawFd; 2]>();
-        let mut res = socket
-            .recvmsg_vectored(&mut iovec, Some(&mut fd_cmsg_buf))
+        let mut fd_cmsg_buf = cmsg::buffer::<[RawFd; 2]>();
+        let (datalen, cmsglen) = socket
+            .recvmsg_vectored(&mut iovec, &mut fd_cmsg_buf)
             .await?;
 
-        if res.is_empty() {
+        if datalen == 0 {
             return Ok(false);
         }
 
-        self.set_len(res.len())?;
+        self.set_len(datalen)?;
 
-        let cmsg = res
-            .take_control_messages()
+        let cmsg = cmsg::iter(&fd_cmsg_buf[..cmsglen])
             .next()
             .ok_or_else(|| format_err!("missing file descriptors in message"))?;
 
@@ -208,7 +209,7 @@ impl ProxyMessageBuffer {
             unsafe { io_vec(&self.seccomp_resp) },
         ];
         let len = iov.iter().map(|e| e.len()).sum();
-        if socket.sendmsg_vectored(&iov, &[]).await? != len {
+        if socket.sendmsg_vectored(&iov).await? != len {
             io_bail!("truncated message?");
         }
         Ok(())

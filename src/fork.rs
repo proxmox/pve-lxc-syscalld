@@ -9,8 +9,7 @@ use std::os::raw::c_int;
 use std::os::unix::io::{FromRawFd, IntoRawFd};
 use std::panic::UnwindSafe;
 
-use io_uring::socket::pipe::{self, Pipe};
-
+use crate::io::pipe::{self, Pipe};
 use crate::syscall::SyscallStatus;
 
 pub async fn forking_syscall<F>(func: F) -> io::Result<SyscallStatus>
@@ -50,7 +49,7 @@ impl Fork {
     where
         F: FnOnce() -> io::Result<SyscallStatus> + UnwindSafe,
     {
-        let (pipe_r, pipe_w) = pipe::pipe_default()?;
+        let (pipe_r, pipe_w) = pipe::pipe()?;
 
         let pid = c_try!(unsafe { libc::fork() });
         if pid == 0 {

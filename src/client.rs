@@ -3,9 +3,9 @@ use std::sync::Arc;
 use failure::Error;
 use nix::errno::Errno;
 
+use crate::io::seq_packet::SeqPacketSocket;
 use crate::lxcseccomp::ProxyMessageBuffer;
 use crate::syscall::{self, Syscall, SyscallStatus};
-use io_uring::socket::SeqPacketSocket;
 
 pub struct Client {
     socket: SeqPacketSocket,

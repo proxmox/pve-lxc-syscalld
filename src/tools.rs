@@ -5,8 +5,6 @@
 
 use std::os::unix::io::{AsRawFd, FromRawFd, IntoRawFd, RawFd};
 
-pub use io_uring::iovec::{IoVec, IoVecMut};
-
 /// Guard a raw file descriptor with a drop handler. This is mostly useful when access to an owned
 /// `RawFd` is required without the corresponding handler object (such as when only the file
 /// descriptor number is required in a closure which may be dropped instead of being executed).

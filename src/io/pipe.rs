@@ -1,14 +1,16 @@
 use std::convert::TryFrom;
 use std::io;
 use std::marker::PhantomData;
-use std::os::unix::io::{AsRawFd, FromRawFd, RawFd};
+use std::os::unix::io::{AsRawFd, FromRawFd, IntoRawFd, RawFd};
 use std::task::{Context, Poll};
 
 use crate::error::io_err_other;
+use crate::io::reactor::PolledFd;
+use crate::io::rw_traits;
 use crate::poll_fn::poll_fn;
-use crate::reactor::PolledFd;
-use crate::rw_traits;
 use crate::tools::Fd;
+
+pub use rw_traits::{Read, Write};
 
 pub struct Pipe<RW> {
     fd: PolledFd,
@@ -19,6 +21,13 @@ impl<RW> AsRawFd for Pipe<RW> {
     #[inline]
     fn as_raw_fd(&self) -> RawFd {
         self.fd.as_raw_fd()
+    }
+}
+
+impl<RW> IntoRawFd for Pipe<RW> {
+    #[inline]
+    fn into_raw_fd(self) -> RawFd {
+        self.fd.into_raw_fd()
     }
 }
 
@@ -55,6 +64,17 @@ impl<RW: rw_traits::HasRead> Pipe<RW> {
 
     pub async fn read(&mut self, data: &mut [u8]) -> io::Result<usize> {
         poll_fn(move |cx| self.poll_read(cx, data)).await
+    }
+
+    pub async fn read_exact(&mut self, mut data: &mut [u8]) -> io::Result<()> {
+        while !data.is_empty() {
+            match self.read(&mut data[..]).await {
+                Ok(got) => data = &mut data[got..],
+                Err(ref err) if err.kind() == io::ErrorKind::Interrupted => continue,
+                Err(err) => return Err(err),
+            }
+        }
+        Ok(())
     }
 }
 

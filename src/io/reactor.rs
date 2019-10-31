@@ -1,5 +1,5 @@
 use std::io;
-use std::os::unix::io::{AsRawFd, RawFd};
+use std::os::unix::io::{AsRawFd, IntoRawFd, RawFd};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, Once};
 use std::task::{Context, Poll, Waker};
@@ -12,7 +12,7 @@ use crate::tools::Fd;
 static START: Once = Once::new();
 static mut REACTOR: Option<Arc<Reactor>> = None;
 
-pub fn default() -> Arc<Reactor> {
+pub fn default_reactor() -> Arc<Reactor> {
     START.call_once(|| unsafe {
         let reactor = Reactor::new().expect("setup main epoll reactor");
         REACTOR = Some(reactor);
@@ -130,10 +130,11 @@ pub struct Registration {
 
 impl Drop for Registration {
     fn drop(&mut self) {
-        let inner = self.inner.as_ref().unwrap();
-        let reactor = Arc::clone(&inner.reactor);
-        inner.gone.store(true, Ordering::Release);
-        reactor.deregister(self.inner.take().unwrap());
+        if let Some(inner) = self.inner.take() {
+            let reactor = Arc::clone(&inner.reactor);
+            inner.gone.store(true, Ordering::Release);
+            reactor.deregister(inner);
+        }
     }
 }
 
@@ -150,8 +151,6 @@ pub struct PolledFd {
     registration: Registration,
 }
 
-// NOTE: For IntoRawFd we'd need to deregister from the reactor explicitly!
-
 impl AsRawFd for PolledFd {
     #[inline]
     fn as_raw_fd(&self) -> RawFd {
@@ -159,10 +158,22 @@ impl AsRawFd for PolledFd {
     }
 }
 
+impl IntoRawFd for PolledFd {
+    fn into_raw_fd(mut self) -> RawFd {
+        let registration = self.registration.inner.take().unwrap();
+        registration
+            .reactor
+            .epoll
+            .remove_fd(self.as_raw_fd())
+            .expect("cannot remove PolledFd from epoll instance");
+        self.fd.into_raw_fd()
+    }
+}
+
 impl PolledFd {
     pub fn new(fd: Fd) -> io::Result<Self> {
         fd.set_nonblocking(true).map_err(io_err_other)?;
-        Self::new_with_reactor(fd, crate::reactor::default())
+        Self::new_with_reactor(fd, self::default_reactor())
     }
 
     pub fn new_with_reactor(fd: Fd, reactor: Arc<Reactor>) -> io::Result<Self> {
@@ -170,7 +181,7 @@ impl PolledFd {
         Ok(Self { fd, registration })
     }
 
-    pub fn wrap_read<T, F>(&mut self, cx: &mut Context, func: F) -> Poll<io::Result<T>>
+    pub fn wrap_read<T, F>(&self, cx: &mut Context, func: F) -> Poll<io::Result<T>>
     where
         F: FnOnce() -> io::Result<T>,
     {
@@ -192,7 +203,7 @@ impl PolledFd {
         }
     }
 
-    pub fn wrap_write<T, F>(&mut self, cx: &mut Context, func: F) -> Poll<io::Result<T>>
+    pub fn wrap_write<T, F>(&self, cx: &mut Context, func: F) -> Poll<io::Result<T>>
     where
         F: FnOnce() -> io::Result<T>,
     {

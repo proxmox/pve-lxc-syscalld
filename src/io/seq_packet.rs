@@ -5,9 +5,9 @@ use std::{io, ptr};
 use failure::Error;
 use nix::sys::socket::{self, AddressFamily, SockAddr, SockFlag, SockType};
 
+use crate::io::reactor::PolledFd;
 use crate::iovec::{IoVec, IoVecMut};
 use crate::poll_fn::poll_fn;
-use crate::reactor::PolledFd;
 use crate::tools::AssertSendSync;
 use crate::tools::Fd;
 
@@ -82,7 +82,7 @@ impl SeqPacketSocket {
     }
 
     pub fn poll_sendmsg(
-        &mut self,
+        &self,
         cx: &mut Context,
         msg: &AssertSendSync<libc::msghdr>,
     ) -> Poll<io::Result<usize>> {
@@ -94,7 +94,7 @@ impl SeqPacketSocket {
         })
     }
 
-    pub async fn sendmsg_vectored(&mut self, iov: &[IoVec<'_>]) -> io::Result<usize> {
+    pub async fn sendmsg_vectored(&self, iov: &[IoVec<'_>]) -> io::Result<usize> {
         let msg = AssertSendSync(libc::msghdr {
             msg_name: ptr::null_mut(),
             msg_namelen: 0,
@@ -109,7 +109,7 @@ impl SeqPacketSocket {
     }
 
     pub fn poll_recvmsg(
-        &mut self,
+        &self,
         cx: &mut Context,
         msg: &mut AssertSendSync<libc::msghdr>,
     ) -> Poll<io::Result<usize>> {
@@ -123,11 +123,11 @@ impl SeqPacketSocket {
 
     // clippy is wrong about this one
     #[allow(clippy::needless_lifetimes)]
-    pub async fn recvmsg_vectored<'a>(
-        &mut self,
+    pub async fn recvmsg_vectored(
+        &self,
         iov: &mut [IoVecMut<'_>],
-        cmsg_buf: &'a mut [u8],
-    ) -> io::Result<usize> {
+        cmsg_buf: &mut [u8],
+    ) -> io::Result<(usize, usize)> {
         let mut msg = AssertSendSync(libc::msghdr {
             msg_name: ptr::null_mut(),
             msg_namelen: 0,
@@ -138,7 +138,8 @@ impl SeqPacketSocket {
             msg_flags: libc::MSG_CMSG_CLOEXEC,
         });
 
-        poll_fn(move |cx| self.poll_recvmsg(cx, &mut msg)).await
+        let data_size = poll_fn(|cx| self.poll_recvmsg(cx, &mut msg)).await?;
+        Ok((data_size, msg.0.msg_controllen as usize))
     }
 
     #[inline]

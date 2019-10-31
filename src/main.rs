@@ -1,5 +1,5 @@
 use std::future::Future;
-use std::io;
+use std::io as StdIo;
 
 use failure::{bail, format_err, Error};
 use nix::sys::socket::SockAddr;
@@ -14,22 +14,19 @@ pub mod epoll;
 pub mod error;
 pub mod executor;
 pub mod fork;
+pub mod io;
 pub mod iovec;
 pub mod lxcseccomp;
 pub mod nsfd;
-pub mod pipe;
 pub mod poll_fn;
 pub mod process;
-pub mod reactor;
-pub mod rw_traits;
 pub mod seccomp;
-pub mod seq_packet;
 pub mod sys_mknod;
 pub mod sys_quotactl;
 pub mod syscall;
 pub mod tools;
 
-use io_uring::socket::SeqPacketListener;
+use crate::io::seq_packet::SeqPacketListener;
 
 static mut EXECUTOR: *mut executor::ThreadPool = std::ptr::null_mut();
 
@@ -61,14 +58,14 @@ async fn do_main() -> Result<(), Error> {
 
     match std::fs::remove_file(&socket_path) {
         Ok(_) => (),
-        Err(ref e) if e.kind() == io::ErrorKind::NotFound => (), // Ok
+        Err(ref e) if e.kind() == StdIo::ErrorKind::NotFound => (), // Ok
         Err(e) => bail!("failed to remove previous socket: {}", e),
     }
 
     let address =
         SockAddr::new_unix(socket_path.as_os_str()).expect("cannot create struct sockaddr_un?");
 
-    let mut listener = SeqPacketListener::bind_default(&address)
+    let mut listener = SeqPacketListener::bind(&address)
         .map_err(|e| format_err!("failed to create listening socket: {}", e))?;
     loop {
         let client = listener.accept().await?;
