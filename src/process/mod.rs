@@ -1,15 +1,15 @@
 use crate::capability::Capabilities;
 
 pub mod cgroups;
-pub mod fd;
 pub mod id_map;
+pub mod pid_fd;
 pub mod user_caps;
 
 #[doc(inline)]
 pub use cgroups::CGroups;
 
 #[doc(inline)]
-pub use fd::PidFd;
+pub use pid_fd::PidFd;
 
 #[doc(inline)]
 pub use id_map::{IdMap, IdMapEntry};
