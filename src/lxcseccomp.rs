@@ -13,8 +13,8 @@ use libc::pid_t;
 use nix::errno::Errno;
 
 use crate::io::cmsg;
+use crate::io::iovec::{IoVec, IoVecMut};
 use crate::io::seq_packet::SeqPacketSocket;
-use crate::iovec::{IoVec, IoVecMut};
 use crate::process::PidFd;
 use crate::seccomp::{SeccompNotif, SeccompNotifResp, SeccompNotifSizes};
 use crate::tools::{Fd, FromFd};

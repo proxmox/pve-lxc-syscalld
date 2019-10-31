@@ -5,8 +5,8 @@ use std::{io, ptr};
 use failure::Error;
 use nix::sys::socket::{self, AddressFamily, SockAddr, SockFlag, SockType};
 
+use crate::io::iovec::{IoVec, IoVecMut};
 use crate::io::reactor::PolledFd;
-use crate::iovec::{IoVec, IoVecMut};
 use crate::poll_fn::poll_fn;
 use crate::tools::AssertSendSync;
 use crate::tools::Fd;

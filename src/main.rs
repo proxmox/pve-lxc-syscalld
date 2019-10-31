@@ -14,7 +14,6 @@ pub mod error;
 pub mod executor;
 pub mod fork;
 pub mod io;
-pub mod iovec;
 pub mod lxcseccomp;
 pub mod nsfd;
 pub mod poll_fn;
