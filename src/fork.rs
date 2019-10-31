@@ -11,6 +11,7 @@ use std::panic::UnwindSafe;
 
 use crate::io::pipe::{self, Pipe};
 use crate::syscall::SyscallStatus;
+use crate::tools::Fd;
 
 pub async fn forking_syscall<F>(func: F) -> io::Result<SyscallStatus>
 where
@@ -54,9 +55,10 @@ impl Fork {
         let pid = c_try!(unsafe { libc::fork() });
         if pid == 0 {
             drop(pipe_r);
-            let mut pipe_w = unsafe { std::fs::File::from_raw_fd(pipe_w.into_raw_fd()) };
-
+            let mut pipe_w = unsafe { Fd::from_raw_fd(pipe_w.into_raw_fd()) };
             let _ = std::panic::catch_unwind(move || {
+                pipe_w.set_nonblocking(false).unwrap();
+                let mut pipe_w = unsafe { std::fs::File::from_raw_fd(pipe_w.into_raw_fd()) };
                 let out = match func() {
                     Ok(SyscallStatus::Ok(val)) => Data {
                         val,

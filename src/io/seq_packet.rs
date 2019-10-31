@@ -116,7 +116,7 @@ impl SeqPacketSocket {
         let fd = self.fd.as_raw_fd();
 
         self.fd.wrap_read(cx, || {
-            c_result!(unsafe { libc::sendmsg(fd, &mut msg.0 as *mut libc::msghdr, 0) })
+            c_result!(unsafe { libc::recvmsg(fd, &mut msg.0 as *mut libc::msghdr, 0) })
                 .map(|rc| rc as usize)
         })
     }

@@ -171,7 +171,7 @@ impl IntoRawFd for PolledFd {
 }
 
 impl PolledFd {
-    pub fn new(fd: Fd) -> io::Result<Self> {
+    pub fn new(mut fd: Fd) -> io::Result<Self> {
         fd.set_nonblocking(true).map_err(io_err_other)?;
         Self::new_with_reactor(fd, self::default_reactor())
     }

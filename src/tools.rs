@@ -20,7 +20,7 @@ impl FromRawFd for Fd {
 }
 
 impl Fd {
-    pub fn set_nonblocking(&self, nb: bool) -> nix::Result<libc::c_int> {
+    pub fn set_nonblocking(&mut self, nb: bool) -> nix::Result<libc::c_int> {
         use nix::fcntl;
         let mut flags =
             fcntl::OFlag::from_bits(fcntl::fcntl(self.0, fcntl::FcntlArg::F_GETFL)?).unwrap();
