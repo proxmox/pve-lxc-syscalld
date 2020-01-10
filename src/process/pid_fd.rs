@@ -18,16 +18,15 @@ use super::{CGroups, IdMap, IdMapEntry, ProcStatus, Uids, UserCaps};
 pub struct PidFd(RawFd, pid_t);
 file_descriptor_impl!(PidFd);
 
+pub const SYS_pidfd_open: libc::c_long = 434; // asm-generic
+
 impl PidFd {
     pub fn current() -> io::Result<Self> {
+        let pid = unsafe { libc::getpid() };
         let fd = c_try!(unsafe {
-            libc::open(
-                b"/proc/self\0".as_ptr() as _,
-                libc::O_DIRECTORY | libc::O_CLOEXEC,
-            )
+            libc::syscall(SYS_pidfd_open, pid, 0)
         });
-
-        Ok(Self(fd, unsafe { libc::getpid() }))
+        Ok(Self(fd, pid))
     }
 
     pub fn open(pid: pid_t) -> io::Result<Self> {
