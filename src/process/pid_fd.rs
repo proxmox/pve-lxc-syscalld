@@ -1,6 +1,6 @@
 //! pidfd helper functionality
 
-use std::ffi::{CStr, CString, OsString};
+use std::ffi::{CStr, OsString};
 use std::io::{self, BufRead, BufReader};
 use std::os::raw::c_int;
 use std::os::unix::ffi::OsStringExt;
@@ -18,23 +18,18 @@ use super::{CGroups, IdMap, IdMapEntry, ProcStatus, Uids, UserCaps};
 pub struct PidFd(RawFd, pid_t);
 file_descriptor_impl!(PidFd);
 
-pub const SYS_pidfd_open: libc::c_long = 434; // asm-generic
+pub const SYS_PIDFD_OPEN: libc::c_long = 434; // asm-generic
 
 impl PidFd {
     pub fn current() -> io::Result<Self> {
-        let pid = unsafe { libc::getpid() };
-        let fd = c_try!(unsafe {
-            libc::syscall(SYS_pidfd_open, pid, 0)
-        });
-        Ok(Self(fd, pid))
+        Self::open(unsafe { libc::getpid() })
     }
 
     pub fn open(pid: pid_t) -> io::Result<Self> {
-        let path = CString::new(format!("/proc/{}", pid)).unwrap();
-
-        let fd = c_try!(unsafe { libc::open(path.as_ptr(), libc::O_DIRECTORY | libc::O_CLOEXEC) });
-
-        Ok(Self(fd, pid))
+        let fd = c_try!(unsafe {
+            libc::syscall(SYS_PIDFD_OPEN, pid, 0)
+        });
+        Ok(Self(fd as RawFd, pid))
     }
 
     /// Turn a valid pid file descriptor into a PidFd.
