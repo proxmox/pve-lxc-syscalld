@@ -9,6 +9,8 @@ use std::os::raw::c_int;
 use std::os::unix::io::{FromRawFd, IntoRawFd};
 use std::panic::UnwindSafe;
 
+use tokio::io::AsyncReadExt;
+
 use crate::io::pipe::{self, Pipe};
 use crate::syscall::SyscallStatus;
 use crate::tools::Fd;

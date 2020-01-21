@@ -29,6 +29,13 @@ impl Fd {
     }
 }
 
+impl AsRef<RawFd> for Fd {
+    #[inline]
+    fn as_ref(&self) -> &RawFd {
+        &self.0
+    }
+}
+
 /// Byte vector utilities.
 pub mod vec {
     /// Create an uninitialized byte vector of a specific size.

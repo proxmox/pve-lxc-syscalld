@@ -6,7 +6,7 @@ use failure::Error;
 use nix::sys::socket::{self, AddressFamily, SockAddr, SockFlag, SockType};
 
 use crate::io::iovec::{IoVec, IoVecMut};
-use crate::io::reactor::PolledFd;
+use crate::io::polled_fd::PolledFd;
 use crate::poll_fn::poll_fn;
 use crate::tools::AssertSendSync;
 use crate::tools::Fd;
@@ -44,7 +44,7 @@ impl SeqPacketListener {
     }
 
     pub fn poll_accept(&mut self, cx: &mut Context) -> Poll<io::Result<SeqPacketSocket>> {
-        let fd = self.fd.as_raw_fd();
+        let fd = self.as_raw_fd();
         let res = self.fd.wrap_read(cx, || {
             c_result!(unsafe {
                 libc::accept4(fd, ptr::null_mut(), ptr::null_mut(), libc::SOCK_CLOEXEC)

@@ -11,7 +11,6 @@ pub mod apparmor;
 pub mod capability;
 pub mod client;
 pub mod error;
-pub mod executor;
 pub mod fork;
 pub mod io;
 pub mod lxcseccomp;
@@ -26,24 +25,14 @@ pub mod tools;
 
 use crate::io::seq_packet::SeqPacketListener;
 
-static mut EXECUTOR: *mut executor::ThreadPool = std::ptr::null_mut();
-
-pub fn executor() -> &'static executor::ThreadPool {
-    unsafe { &*EXECUTOR }
-}
-
 pub fn spawn(fut: impl Future<Output = ()> + Send + 'static) {
-    executor().spawn_ok(fut)
+    tokio::spawn(fut);
 }
 
 fn main() {
-    let mut executor = executor::ThreadPool::new().expect("spawning worker threadpool");
-    unsafe {
-        EXECUTOR = &mut executor;
-    }
-    std::sync::atomic::fence(std::sync::atomic::Ordering::Release);
+    let mut rt = tokio::runtime::Runtime::new().expect("failed to spawn tokio runtime");
 
-    if let Err(err) = executor.run(do_main()) {
+    if let Err(err) = rt.block_on(do_main()) {
         eprintln!("error: {}", err);
         std::process::exit(1);
     }

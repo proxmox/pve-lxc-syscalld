@@ -50,13 +50,14 @@ impl Capabilities {
 
     /// Change our process capabilities. This does not include the bounding set.
     pub fn capset(&self) -> io::Result<()> {
-        #![allow(dead_code)]
         // kernel abi:
+        #[allow(dead_code)]
         struct Header {
             version: u32,
             pid: c_int,
         }
 
+        #[allow(dead_code)]
         struct Data {
             effective: u32,
             permitted: u32,

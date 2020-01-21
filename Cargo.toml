@@ -8,7 +8,9 @@ authors = [
 
 [dependencies]
 bitflags = "1.2"
-failure = { version = "0.1", default-features = false, features = ["std"] }
+failure = { version = "0.1", default-features = false, features = [ "std" ] }
 lazy_static = "1.4"
 libc = "0.2"
 nix = "0.16"
+mio = "0.6.21"
+tokio = { version = "0.2.9", features = [ "rt-threaded", "io-driver", "io-util" ] }
