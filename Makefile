@@ -64,10 +64,10 @@ build:
 	    $(MAKE) -C build/$(i) clean ;)
 
 .PHONY: deb
-deb: $(DEBS)
-$(DEBS): build
+deb: $(DEB)
+$(DEB): build
 	cd build; dpkg-buildpackage -b -us -uc --no-pre-clean --build-profiles=nodoc
-	lintian $(DEBS)
+	lintian $(DEB)
 
 .PHONY: dsc
 dsc: $(DSC)
