@@ -5,6 +5,11 @@ version = "0.1.0"
 authors = [
     "Wolfgang Bumiller <w.bumiller@proxmox.com>",
 ]
+license = "AGPL-3"
+description = "Proxmox LXC seccomp-proxy syscall handler daemon"
+homepage = "https://www.proxmox.com"
+
+exclude = [ "build", "debian" ]
 
 [dependencies]
 bitflags = "1.2"

@@ -1,11 +1,3 @@
-Source: pve-lxc-syscalld
-Section: admin
-Priority: optional
-Maintainer: Proxmox Support Team <support@proxmox.com>
-Build-Depends: debhelper (>= 10),
-Standards-Version: 3.9.5
-Homepage: https://www.proxmox.com
-
 Package: pve-lxc-syscalld
 Architecture: any
 Depends: ${shlibs:Depends}, ${misc:Depends},
