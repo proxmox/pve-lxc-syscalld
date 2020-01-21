@@ -34,8 +34,8 @@ cargo-build:
 
 .PHONY: test
 test:
+	cargo +nightly fmt -- --check
 	cargo test
-	cargo fmt --all -- --check
 	cargo clippy
 
 $(COMPILED_BINS): cargo-build
