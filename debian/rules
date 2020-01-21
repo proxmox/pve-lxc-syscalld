@@ -18,20 +18,20 @@ export DEB_CARGO_CRATE=pve-lxc-syscalld_$(DEB_VERSION_UPSTREAM)
 export DEB_CARGO_PACKAGE=pve-lxc-syscalld
 
 %:
-        dh $@
+	dh $@
 
 override_dh_auto_configure:
-        $(CARGO) prepare-debian $(CURDIR)/debian/cargo_registry --link-from-system
-        dh_auto_configure
+	$(CARGO) prepare-debian $(CURDIR)/debian/cargo_registry --link-from-system
+	dh_auto_configure
 
 override_dh_missing:
-        dh_missing --fail-missing
+	dh_missing --fail-missing
 
 #override_dh_installinit:
-#        dh_installinit
-#        dh_installinit --name pve-lxc-syscalld
+#	dh_installinit
+#	dh_installinit --name pve-lxc-syscalld
 
 # # workaround https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=933541
 # # TODO: remove once available (Debian 11 ?)
 # override_dh_dwz:
-#         dh_dwz --no-dwz-multifile
+#	dh_dwz --no-dwz-multifile
