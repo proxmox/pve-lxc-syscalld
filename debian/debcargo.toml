@@ -1,5 +1,5 @@
 overlay = "."
-crate_src_path = "."
+crate_src_path = ".."
 
 [source]
 maintainer = "Proxmox Support Team <support@proxmox.com>"

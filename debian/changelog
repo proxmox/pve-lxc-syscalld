@@ -1,4 +1,4 @@
-pve-lxc-syscalld (0.1-1) pve; urgency=medium
+rust-pve-lxc-syscalld (0.1.0-1) pve; urgency=medium
 
   * initial release
 

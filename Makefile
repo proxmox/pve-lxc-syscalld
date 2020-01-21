@@ -19,9 +19,8 @@ SERVICE_BIN := pve-lxc-syscalld
 COMPILED_BINS := \
 	$(addprefix $(COMPILEDIR)/,$(SERVICE_BIN))
 
-DEB=$(PACKAGE)_$(DEB_VERSION_UPSTREAM_REVISION)_$(DEB_HOST_ARCH).deb
-DSC=$(PACKAGE)_$(DEB_VERSION_UPSTREAM_REVISION).dsc
-BUILDSRC := $(PACKAGE)-$(DEB_VERSION_UPSTREAM)
+DEB=$(PACKAGE)_$(DEB_VERSION)_$(DEB_HOST_ARCH).deb
+DSC=rust-$(PACKAGE)_$(DEB_VERSION).dsc
 
 all: cargo-build $(SUBDIRS)
 
@@ -46,33 +45,38 @@ install: $(COMPILED_BINS)
 	$(foreach i,$(SERVICE_BIN), \
 	    install -m755 $(COMPILEDIR)/$(i) $(DESTDIR)$(LIBEXECDIR)/proxmox-backup/ ;)
 
-# always re-create this dir
-# but also copy the local target/ dir as a build-cache
-.PHONY: $(BUILDSRC)
-$(BUILDSRC):
-	rm -rf $(BUILDSRC)
-	cargo build --release
-	rsync -a debian Makefile defines.mk Cargo.toml Cargo.lock \
-	    src $(SUBDIRS) \
-	    target \
-	    $(BUILDSRC)/
+.PHONY: build
+build:
+	rm -rf build
+	debcargo package \
+	  --config debian/debcargo.toml \
+	  --changelog-ready \
+	  --no-overlay-write-back \
+	  --directory build \
+	  pve-lxc-syscalld \
+	  $(shell dpkg-parsechangelog -l debian/changelog -SVersion | sed -e 's/-.*//')
+	sed -e '1,/^$$/ ! d' build/debian/control > build/debian/control.src
+	cat build/debian/control.src build/debian/control.in > build/debian/control
+	rm build/debian/control.in build/debian/control.src
+	rm build/Cargo.lock
+	find build/debian -name "*.hint" -delete
 	$(foreach i,$(SUBDIRS), \
-	    $(MAKE) -C $(BUILDSRC)/$(i) clean ;)
+	    $(MAKE) -C build/$(i) clean ;)
 
 .PHONY: deb
-deb: $(DEB)
-$(DEB): $(BUILDSRC)
-	cd $(BUILDSRC); dpkg-buildpackage -b -us -uc --no-pre-clean
-	lintian $(DEB)
+deb: $(DEBS)
+$(DEBS): build
+	cd build; dpkg-buildpackage -b -us -uc --no-pre-clean --build-profiles=nodoc
+	lintian $(DEBS)
 
 .PHONY: dsc
 dsc: $(DSC)
-$(DSC): $(BUILDSRC)
-	cd $(BUILDSRC); dpkg-buildpackage -S -us -uc -d -nc
+$(DSC): build
+	cd build; dpkg-buildpackage -S -us -uc -d -nc
 	lintian $(DSC)
 
 clean:
 	$(foreach i,$(SUBDIRS), \
 	    $(MAKE) -C $(i) clean ;)
 	cargo clean
-	rm -rf *.deb *.dsc *.tar.gz *.buildinfo *.changes $(BUILDSRC)
+	rm -rf *.deb *.dsc *.tar.gz *.buildinfo *.changes build
