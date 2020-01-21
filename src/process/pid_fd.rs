@@ -26,9 +26,7 @@ impl PidFd {
     }
 
     pub fn open(pid: pid_t) -> io::Result<Self> {
-        let fd = c_try!(unsafe {
-            libc::syscall(SYS_PIDFD_OPEN, pid, 0)
-        });
+        let fd = c_try!(unsafe { libc::syscall(SYS_PIDFD_OPEN, pid, 0) });
         Ok(Self(fd as RawFd, pid))
     }
 
