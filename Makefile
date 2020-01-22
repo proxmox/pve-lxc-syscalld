@@ -48,9 +48,9 @@ san:
 $(COMPILED_BINS): cargo-build
 
 install: $(COMPILED_BINS)
-	install -dm755 $(DESTDIR)$(LIBEXECDIR)/proxmox-backup
+	install -dm755 $(DESTDIR)$(LIBEXECDIR)/pve-lxc-syscalld
 	$(foreach i,$(SERVICE_BIN), \
-	    install -m755 $(COMPILEDIR)/$(i) $(DESTDIR)$(LIBEXECDIR)/proxmox-backup/ ;)
+	    install -m755 $(COMPILEDIR)/$(i) $(DESTDIR)$(LIBEXECDIR)/pve-lxc-syscalld/ ;)
 
 .PHONY: build
 build:
