@@ -35,24 +35,21 @@ impl Client {
     }
 
     async fn main_do(self: Arc<Self>) -> Result<(), Error> {
+        let mut msg = ProxyMessageBuffer::new(64);
         loop {
-            let mut msg = ProxyMessageBuffer::new(64);
-
             if !msg.recv(&self.socket).await? {
                 break Ok(());
             }
 
-            // Note: our spawned tasks here must not access our socket, as we cannot guarantee
-            // they'll be woken up if another task errors into `wrap_error()`.
-            crate::spawn(self.clone().wrap_error(self.clone().__handle_syscall(msg)));
+            self.handle_syscall(&mut msg).await?;
         }
     }
 
-    // Note: we must not use the socket for anything other than sending the result!
-    async fn __handle_syscall(self: Arc<Self>, mut msg: ProxyMessageBuffer) -> Result<(), Error> {
-        let result = match Self::handle_syscall(&msg).await {
+    async fn handle_syscall(&self, msg: &mut ProxyMessageBuffer) -> Result<(), Error> {
+        let result = match Self::handle_syscall_do(&msg).await {
             Ok(r) => r,
             Err(err) => {
+                // handle the various kinds of errors we may get:
                 if let Some(errno) = err.downcast_ref::<nix::errno::Errno>() {
                     SyscallStatus::Err(*errno as _)
                 } else if let Some(nix::Error::Sys(errno)) = err.downcast_ref::<nix::Error>() {
@@ -84,7 +81,7 @@ impl Client {
         msg.respond(&self.socket).await.map_err(Error::from)
     }
 
-    async fn handle_syscall(msg: &ProxyMessageBuffer) -> Result<SyscallStatus, Error> {
+    async fn handle_syscall_do(msg: &ProxyMessageBuffer) -> Result<SyscallStatus, Error> {
         let (arch, sysnr) = (msg.request().data.arch, msg.request().data.nr);
 
         let syscall_nr = match syscall::translate_syscall(arch, sysnr) {
