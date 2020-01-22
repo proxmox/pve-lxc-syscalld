@@ -1,3 +1,5 @@
+//! Namespace file descriptor helpers.
+
 use std::ffi::CStr;
 use std::io;
 use std::marker::PhantomData;

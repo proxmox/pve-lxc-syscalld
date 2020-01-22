@@ -1,4 +1,4 @@
-//! Module for LXC specific related seccomp handling.
+//! Module for LXC specific seccomp handling.
 
 use std::convert::TryFrom;
 use std::ffi::CString;
@@ -115,8 +115,9 @@ impl ProxyMessageBuffer {
         self.pid_fd = None;
     }
 
-    /// Returns None on EOF.
+    /// Returns false on EOF.
     pub async fn recv(&mut self, socket: &SeqPacketSocket) -> Result<bool, Error> {
+        // prepare buffers:
         self.reset();
 
         unsafe {
@@ -134,6 +135,7 @@ impl ProxyMessageBuffer {
             self.cookie_buf.set_len(0);
         }
 
+        // receive:
         let mut fd_cmsg_buf = cmsg::buffer::<[RawFd; 2]>();
         let (datalen, cmsglen) = socket
             .recvmsg_vectored(&mut iovec, &mut fd_cmsg_buf)
@@ -144,6 +146,8 @@ impl ProxyMessageBuffer {
         }
 
         self.set_len(datalen)?;
+
+        // iterate through control messages:
 
         let cmsg = cmsg::iter(&fd_cmsg_buf[..cmsglen])
             .next()
