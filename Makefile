@@ -60,6 +60,7 @@ build:
 	rm build/debian/control.in build/debian/control.src
 	rm build/Cargo.lock
 	find build/debian -name "*.hint" -delete
+	echo system >build/rust-toolchain
 	$(foreach i,$(SUBDIRS), \
 	    $(MAKE) -C build/$(i) clean ;)
 
