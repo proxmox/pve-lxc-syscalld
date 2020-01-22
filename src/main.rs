@@ -32,7 +32,7 @@ pub fn spawn(fut: impl Future<Output = ()> + Send + 'static) {
     tokio::spawn(fut);
 }
 
-fn usage(status: i32, program: &OsStr, out: &mut dyn Write) -> !{
+fn usage(status: i32, program: &OsStr, out: &mut dyn Write) -> ! {
     let _ = out.write_all("usage: ".as_bytes());
     let _ = out.write_all(program.as_bytes());
     let _ = out.write_all(
@@ -42,7 +42,8 @@ fn usage(status: i32, program: &OsStr, out: &mut dyn Write) -> !{
             "    -h, --help      show this help message\n",
             "    --system        \
                      run as systemd daemon (use sd_notify() when ready to accept connections)\n",
-        ).as_bytes()
+        )
+        .as_bytes(),
     );
     std::process::exit(status);
 }
