@@ -83,6 +83,11 @@ $(DSC): build
 	cd build; dpkg-buildpackage -S -us -uc -d -nc
 	lintian $(DSC)
 
+.PHONY: dinstall
+dinstall:
+	$(MAKE) deb
+	sudo -k dpkg -i $(DEB)
+
 clean:
 	$(foreach i,$(SUBDIRS), \
 	    $(MAKE) -C $(i) clean ;)
