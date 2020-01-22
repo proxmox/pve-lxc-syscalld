@@ -3,9 +3,9 @@ Description=Proxmox VE LXC Syscall Daemon
 Before=pve-guests.service
 
 [Service]
-#FIXME!!!
-Type=simple
-ExecStart=%LIBEXECDIR%/pve/pve-lxc-syscalld
+Type=notify
+ExecStart=%LIBEXECDIR%/pve-lxc-syscalld/pve-lxc-syscalld --system /run/pve/lxc-syscalld.sock
+RuntimeDirectory=pve
 Restart=on-failure
 
 [Install]

@@ -128,7 +128,7 @@ extern "C" {
 
 fn notify_systemd() -> StdIo::Result<()> {
     let err = unsafe { sd_notify(0, c_str!("READY=1\n").as_ptr()) };
-    if err == 0 {
+    if err >= 0 {
         Ok(())
     } else {
         Err(StdIo::Error::from_raw_os_error(-err))
