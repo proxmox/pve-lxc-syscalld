@@ -1,8 +1,8 @@
 //! Fork helper.
 //!
 //! Note that forking in rust can be dangerous. A fork must consider all mutexes to be in a broken
-//! state, and cannot rely on any of its reference life times, so we be careful what kind of data
-//! we continue to work with.
+//! state, and cannot rely on any of its reference life times, so we must be careful what kind of
+//! data we continue to work with.
 
 use std::io;
 use std::os::raw::c_int;
