@@ -1,4 +1,4 @@
-use std::convert::TryFrom;
+use std::convert::{TryFrom, TryInto};
 use std::io;
 use std::marker::PhantomData;
 use std::os::unix::io::{AsRawFd, FromRawFd, IntoRawFd, RawFd};
@@ -14,9 +14,52 @@ use crate::tools::Fd;
 
 pub use rw_traits::{Read, Write};
 
+/// Helper struct for generating pipes.
+///
+/// `Pipe` is a tokio-io supported type, associated with a reactor. After a `fork()` we cannot do
+/// anything with it, including turning it into a raw fd as tokio will attempt to disassociate it
+/// from the reactor, which will just break.
+///
+/// So we start out with this type which can be "upgraded" or "downgraded" into a `Pipe<T>` or
+/// `Fd`.
+pub struct PipeFd<RW>(Fd, PhantomData<RW>);
+
+impl<RW> PipeFd<RW> {
+    pub fn new(fd: Fd) -> Self {
+        Self(fd, PhantomData)
+    }
+
+    pub fn into_fd(self) -> Fd {
+        self.0
+    }
+}
+
+pub fn pipe_fds() -> io::Result<(PipeFd<rw_traits::Read>, PipeFd<rw_traits::Write>)> {
+    let mut pfd: [RawFd; 2] = [0, 0];
+
+    c_try!(unsafe { libc::pipe2(pfd.as_mut_ptr(), libc::O_CLOEXEC) });
+
+    let (fd_in, fd_out) = unsafe { (Fd::from_raw_fd(pfd[0]), Fd::from_raw_fd(pfd[1])) };
+
+    Ok((PipeFd::new(fd_in), PipeFd::new(fd_out)))
+}
+
+/// Tokio supported pipe file descriptor. `tokio::fs::File` requires tokio's complete file system
+/// feature gate, so we just use this `PolledFd` wrapper.
 pub struct Pipe<RW> {
     fd: PolledFd,
     _phantom: PhantomData<RW>,
+}
+
+impl<RW> TryFrom<PipeFd<RW>> for Pipe<RW> {
+    type Error = io::Error;
+
+    fn try_from(fd: PipeFd<RW>) -> io::Result<Self> {
+        Ok(Self {
+            fd: PolledFd::new(fd.into_fd())?,
+            _phantom: PhantomData,
+        })
+    }
 }
 
 impl<RW> AsRawFd for Pipe<RW> {
@@ -34,22 +77,9 @@ impl<RW> IntoRawFd for Pipe<RW> {
 }
 
 pub fn pipe() -> io::Result<(Pipe<rw_traits::Read>, Pipe<rw_traits::Write>)> {
-    let mut pfd: [RawFd; 2] = [0, 0];
+    let (fd_in, fd_out) = pipe_fds()?;
 
-    c_try!(unsafe { libc::pipe2(pfd.as_mut_ptr(), libc::O_CLOEXEC) });
-
-    let (fd_in, fd_out) = unsafe { (Fd::from_raw_fd(pfd[0]), Fd::from_raw_fd(pfd[1])) };
-
-    Ok((
-        Pipe {
-            fd: PolledFd::new(fd_in)?,
-            _phantom: PhantomData,
-        },
-        Pipe {
-            fd: PolledFd::new(fd_out)?,
-            _phantom: PhantomData,
-        },
-    ))
+    Ok((fd_in.try_into()?, fd_out.try_into()?))
 }
 
 impl<RW: rw_traits::HasRead> AsyncRead for Pipe<RW> {

@@ -4,6 +4,7 @@
 //! state, and cannot rely on any of its reference life times, so we must be careful what kind of
 //! data we continue to work with.
 
+use std::convert::TryInto;
 use std::io;
 use std::os::raw::c_int;
 use std::os::unix::io::{FromRawFd, IntoRawFd};
@@ -13,7 +14,6 @@ use tokio::io::AsyncReadExt;
 
 use crate::io::pipe::{self, Pipe};
 use crate::syscall::SyscallStatus;
-use crate::tools::Fd;
 
 pub async fn forking_syscall<F>(func: F) -> io::Result<SyscallStatus>
 where
@@ -52,12 +52,12 @@ impl Fork {
     where
         F: FnOnce() -> io::Result<SyscallStatus> + UnwindSafe,
     {
-        let (pipe_r, pipe_w) = pipe::pipe()?;
+        let (pipe_r, pipe_w) = pipe::pipe_fds()?;
 
         let pid = c_try!(unsafe { libc::fork() });
         if pid == 0 {
             drop(pipe_r);
-            let mut pipe_w = unsafe { Fd::from_raw_fd(pipe_w.into_raw_fd()) };
+            let mut pipe_w = pipe_w.into_fd();
             let _ = std::panic::catch_unwind(move || {
                 pipe_w.set_nonblocking(false).unwrap();
                 let mut pipe_w = unsafe { std::fs::File::from_raw_fd(pipe_w.into_raw_fd()) };
@@ -97,6 +97,16 @@ impl Fork {
             }
         }
         drop(pipe_w);
+
+        let pipe_r = match pipe_r.try_into() {
+            Ok(p) => p,
+            Err(err) => {
+                unsafe {
+                    libc::kill(pid, 9);
+                }
+                return Err(err);
+            }
+        };
 
         Ok(Self {
             pid: Some(pid),
