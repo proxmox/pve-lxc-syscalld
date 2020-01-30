@@ -1,5 +1,11 @@
+rust-pve-lxc-syscalld (0.9.1-1) pve; urgency=medium
+
+  * fix handling of '--' parameter separator and error output
+
+ -- Proxmox Support Team <support@proxmox.com>  Thu, 30 Jan 2020 09:02:35 +0100
+
 rust-pve-lxc-syscalld (0.9.0-1) pve; urgency=medium
 
-  * initial release
+  * initial development release
 
- -- Proxmox Support Team <support@proxmox.com>  Wed, 10 Jul 2019 14:40:16 +0200
+ -- Proxmox Support Team <support@proxmox.com>  Wed, 29 Jan 2020 12:00:00 +0100
