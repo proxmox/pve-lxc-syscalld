@@ -55,6 +55,17 @@ fn main() {
     let mut use_sd_notify = false;
     let mut path = None;
 
+    let mut nonopt_arg = |arg: OsString| {
+        if path.is_some() {
+            let _ = stderr().write_all(b"unexpected extra parameter: ");
+            let _ = stderr().write_all(arg.as_bytes());
+            let _ = stderr().write_all(b"\n");
+            usage(1, &program, &mut stderr());
+        }
+
+        path = Some(arg);
+    };
+
     for arg in &mut args {
         if arg == "-h" || arg == "--help" {
             usage(0, &program, &mut stdout());
@@ -65,22 +76,21 @@ fn main() {
         } else if arg == "--system" {
             use_sd_notify = true;
         } else {
-            let bytes = arg.as_bytes();
-            if bytes.starts_with(b"-") {
+            if arg.as_bytes().starts_with(b"-") {
                 let _ = stderr().write_all(b"unexpected option: ");
                 let _ = stderr().write_all(arg.as_bytes());
+                let _ = stderr().write_all(b"\n");
                 usage(1, &program, &mut stderr());
             }
 
-            if path.is_some() {
-                let _ = stderr().write_all(b"unexpected extra parameter: ");
-                let _ = stderr().write_all(arg.as_bytes());
-                usage(1, &program, &mut stderr());
-            }
-
-            path = Some(arg);
+            nonopt_arg(arg);
         }
     }
+
+    for arg in &mut args {
+        nonopt_arg(arg);
+    }
+    drop(nonopt_arg);
 
     let path = match path {
         Some(path) => path,
