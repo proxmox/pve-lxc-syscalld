@@ -4,7 +4,7 @@ use std::ffi::{OsStr, OsString};
 use std::io;
 use std::os::unix::ffi::OsStrExt;
 
-use failure::Error;
+use anyhow::Error;
 
 use super::PidFd;
 use crate::capability::Capabilities;

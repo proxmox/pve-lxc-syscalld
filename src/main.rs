@@ -4,7 +4,7 @@ use std::io as StdIo;
 use std::io::{stderr, stdout, Write};
 use std::os::unix::ffi::OsStrExt;
 
-use failure::{bail, format_err, Error};
+use anyhow::{bail, format_err, Error};
 use nix::sys::socket::SockAddr;
 
 #[macro_use]

@@ -1,7 +1,7 @@
 use std::ffi::CString;
 use std::os::unix::io::AsRawFd;
 
-use failure::Error;
+use anyhow::Error;
 use nix::errno::Errno;
 use nix::sys::stat;
 

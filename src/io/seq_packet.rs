@@ -2,7 +2,7 @@ use std::os::unix::io::{AsRawFd, FromRawFd, RawFd};
 use std::task::{Context, Poll};
 use std::{io, ptr};
 
-use failure::Error;
+use anyhow::Error;
 use nix::sys::socket::{self, AddressFamily, SockAddr, SockFlag, SockType};
 
 use crate::io::iovec::{IoVec, IoVecMut};

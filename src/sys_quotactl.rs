@@ -3,7 +3,7 @@ use std::ffi::CString;
 use std::os::raw::{c_int, c_uint};
 use std::{io, mem, ptr};
 
-use failure::Error;
+use anyhow::Error;
 use nix::errno::Errno;
 
 use crate::fork::forking_syscall;

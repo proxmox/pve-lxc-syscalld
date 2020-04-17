@@ -1,7 +1,7 @@
 use std::ffi::CString;
 use std::os::raw::c_int;
 
-use failure::Error;
+use anyhow::Error;
 use nix::errno::Errno;
 
 use crate::lxcseccomp::ProxyMessageBuffer;

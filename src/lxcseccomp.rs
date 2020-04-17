@@ -7,7 +7,7 @@ use std::os::unix::fs::FileExt;
 use std::os::unix::io::{FromRawFd, RawFd};
 use std::{io, mem};
 
-use failure::{bail, format_err, Error};
+use anyhow::{bail, format_err, Error};
 use lazy_static::lazy_static;
 use libc::pid_t;
 use nix::errno::Errno;

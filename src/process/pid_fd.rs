@@ -6,7 +6,7 @@ use std::os::raw::c_int;
 use std::os::unix::ffi::OsStringExt;
 use std::os::unix::io::{AsRawFd, FromRawFd, IntoRawFd, RawFd};
 
-use failure::{bail, Error};
+use anyhow::{bail, Error};
 use libc::pid_t;
 
 use crate::capability::Capabilities;

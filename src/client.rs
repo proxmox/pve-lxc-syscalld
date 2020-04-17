@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use failure::Error;
+use anyhow::Error;
 use nix::errno::Errno;
 
 use crate::io::seq_packet::SeqPacketSocket;
