@@ -1,8 +1,8 @@
 overlay = "."
 crate_src_path = ".."
+maintainer = "Proxmox Support Team <support@proxmox.com>"
 
 [source]
-maintainer = "Proxmox Support Team <support@proxmox.com>"
 section = "admin"
 build_depends = [ "debhelper (>= 12~)", "bash-completion" ]
 build_depends_excludes = [ "debhelper (>=11)" ]
