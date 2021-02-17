@@ -5,7 +5,7 @@ use std::os::unix::io::{AsRawFd, FromRawFd, IntoRawFd, RawFd};
 use std::pin::Pin;
 use std::task::{Context, Poll};
 
-use tokio::io::{AsyncRead, AsyncWrite};
+use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
 
 use crate::error::io_err_other;
 use crate::io::polled_fd::PolledFd;
@@ -86,13 +86,14 @@ impl<RW: rw_traits::HasRead> AsyncRead for Pipe<RW> {
     fn poll_read(
         self: Pin<&mut Self>,
         cx: &mut Context<'_>,
-        buf: &mut [u8],
-    ) -> Poll<io::Result<usize>> {
+        buf: &mut ReadBuf,
+    ) -> Poll<io::Result<()>> {
         self.fd.wrap_read(cx, || {
             let fd = self.as_raw_fd();
+            let buf = buf.initialize_unfilled();
             let size = libc::size_t::try_from(buf.len()).map_err(io_err_other)?;
             c_result!(unsafe { libc::read(fd, buf.as_mut_ptr() as *mut libc::c_void, size) })
-                .map(|res| res as usize)
+                .map(|_| ())
         })
     }
 }

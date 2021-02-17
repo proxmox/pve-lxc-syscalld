@@ -100,7 +100,7 @@ fn main() {
         }
     };
 
-    let mut rt = tokio::runtime::Runtime::new().expect("failed to spawn tokio runtime");
+    let rt = tokio::runtime::Runtime::new().expect("failed to spawn tokio runtime");
 
     if let Err(err) = rt.block_on(do_main(use_sd_notify, path)) {
         eprintln!("error: {}", err);
