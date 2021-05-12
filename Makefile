@@ -34,7 +34,7 @@ cargo-build:
 
 .PHONY: test
 test:
-	cargo test
+	cargo test $(CARGO_BUILD_ARGS)
 
 .PHONY: check
 check: test
