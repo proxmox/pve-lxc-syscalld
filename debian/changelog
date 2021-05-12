@@ -1,3 +1,11 @@
+rust-pve-lxc-syscalld (0.9.2-1) pve; urgency=medium
+
+  * update to tokio 1.0
+
+  * re-build for Proxmox VE 7 / Debian Bullseye
+
+ -- Proxmox Support Team <support@proxmox.com>  Wed, 12 May 2021 21:05:15 +0200
+
 rust-pve-lxc-syscalld (0.9.1-1) pve; urgency=medium
 
   * fix handling of '--' parameter separator and error output
