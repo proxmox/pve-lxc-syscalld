@@ -1,3 +1,12 @@
+rust-pve-lxc-syscalld (1.0.0-1) pve; urgency=medium
+
+  * support pure cgroupv2 environments
+
+  * fix issue with tokio 1.0 update causing pipes in forked syscalls to
+    wrongly indicate EOF
+
+ -- Proxmox Support Team <support@proxmox.com>  Thu, 10 Jun 2021 12:03:52 +0200
+
 rust-pve-lxc-syscalld (0.9.2-1) pve; urgency=medium
 
   * update to tokio 1.0
