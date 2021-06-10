@@ -90,10 +90,15 @@ impl<RW: rw_traits::HasRead> AsyncRead for Pipe<RW> {
     ) -> Poll<io::Result<()>> {
         self.fd.wrap_read(cx, || {
             let fd = self.as_raw_fd();
-            let buf = buf.initialize_unfilled();
-            let size = libc::size_t::try_from(buf.len()).map_err(io_err_other)?;
-            c_result!(unsafe { libc::read(fd, buf.as_mut_ptr() as *mut libc::c_void, size) })
-                .map(|_| ())
+            let mem = buf.initialize_unfilled();
+            let size = libc::size_t::try_from(mem.len()).map_err(io_err_other)?;
+            c_result!(unsafe { libc::read(fd, mem.as_mut_ptr() as *mut libc::c_void, size) }).map(
+                |received| {
+                    if received > 0 {
+                        buf.advance(received as usize)
+                    }
+                },
+            )
         })
     }
 }
