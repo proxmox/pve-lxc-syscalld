@@ -77,6 +77,12 @@ $(DEB): build
 	cd build; dpkg-buildpackage -b -us -uc --no-pre-clean --build-profiles=nodoc
 	lintian $(DEB)
 
+upload: deb
+	dcmd --deb rust-pve-lxc-syscalld_*.changes \
+	    | grep -v '.changes$$' \
+	    | tar -cf- -T- \
+	    | ssh -X repoman@repo.proxmox.com upload --product pve --dist bullseye
+
 .PHONY: dsc
 dsc: $(DSC)
 $(DSC): build
