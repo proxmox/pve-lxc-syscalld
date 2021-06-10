@@ -222,7 +222,10 @@ impl PidFd {
                 cgroups.v2 = Some(path);
             } else {
                 for entry in name.split(',') {
-                    cgroups.v1.insert(entry.to_string(), path.clone());
+                    cgroups
+                        .v1
+                        .get_or_insert_with(Default::default)
+                        .insert(entry.to_string(), path.clone());
                 }
             }
         }

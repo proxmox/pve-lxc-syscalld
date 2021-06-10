@@ -47,6 +47,7 @@ pub struct UserCaps<'a> {
     capabilities: Capabilities,
     umask: libc::mode_t,
     cgroup_v1_devices: Option<OsString>,
+    cgroup_v2_base: &'static str,
     cgroup_v2: Option<OsString>,
     apparmor_profile: Option<OsString>,
 }
@@ -67,12 +68,15 @@ impl UserCaps<'_> {
             capabilities: status.capabilities,
             umask: status.umask,
             cgroup_v1_devices: cgroups.get("devices").map(|s| s.to_owned()),
+            cgroup_v2_base: if cgroups.has_v1() { "unified/" } else { "" },
             cgroup_v2: cgroups.v2().map(|s| s.to_owned()),
             apparmor_profile,
         })
     }
 
     fn apply_cgroups(&self) -> io::Result<()> {
+        // FIXME: Handle `kind` taking /proc/self/mountinfo into account instead of assuming
+        // "unified/"
         fn enter_cgroup(kind: &str, name: &OsStr) -> io::Result<()> {
             let mut path = OsString::with_capacity(15 + kind.len() + name.len() + 13 + 1);
             path.push(OsStr::from_bytes(b"/sys/fs/cgroup/"));
@@ -87,7 +91,7 @@ impl UserCaps<'_> {
         }
 
         if let Some(ref cg) = self.cgroup_v2 {
-            enter_cgroup("unified/", cg)?;
+            enter_cgroup(self.cgroup_v2_base, cg)?;
         }
 
         Ok(())
