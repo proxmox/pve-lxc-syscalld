@@ -43,6 +43,7 @@ fn check_mknod_dev(mode: stat::mode_t, dev: stat::dev_t) -> bool {
     let major = stat::major(dev);
     let minor = stat::minor(dev);
 
+    #[allow(clippy::match_like_matches_macro)]
     match (sflag, major, minor) {
         (libc::S_IFREG, 0, 0) => true, // touch
         (libc::S_IFCHR, 0, 0) => true, // whiteout

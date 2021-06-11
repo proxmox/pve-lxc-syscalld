@@ -393,7 +393,7 @@ impl ProxyMessageBuffer {
     /// Checked way to get a `dev_t` argument.
     #[inline]
     pub fn arg_dev_t(&self, arg: u32) -> Result<nix::sys::stat::dev_t, Error> {
-        nix::sys::stat::dev_t::try_from(self.arg(arg)?).map_err(|_| Errno::EINVAL.into())
+        self.arg(arg)
     }
 
     /// Checked way to get a file descriptor argument.

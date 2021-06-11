@@ -10,6 +10,7 @@ use anyhow::{bail, Error};
 use libc::pid_t;
 
 use crate::capability::Capabilities;
+use crate::error::io_err_other;
 use crate::nsfd::{ns_type, NsFd};
 use crate::tools::Fd;
 
@@ -38,6 +39,7 @@ impl PidFd {
     /// The file descriptor must already be a valid pidfd, this is not checked. This function only
     /// fails if reading the pid from the pidfd's proc entry fails.
     pub unsafe fn try_from_fd(fd: Fd) -> io::Result<Self> {
+        #[allow(clippy::unnecessary_cast)] // pid_t is a type alias
         let mut this = Self(fd.into_raw_fd(), -1 as pid_t);
         let pid = this.read_pid()?;
         this.1 = pid;
@@ -145,24 +147,24 @@ impl PidFd {
 
         #[inline]
         fn check_u64_hex(value: Option<&str>) -> io::Result<u64> {
-            Ok(u64::from_str_radix(
+            u64::from_str_radix(
                 value.ok_or_else(|| {
                     io::Error::new(io::ErrorKind::Other, "bad numeric property line in proc")
                 })?,
                 16,
             )
-            .map_err(|e| io::Error::new(io::ErrorKind::Other, e.to_string()))?)
+            .map_err(io_err_other)
         }
 
         #[inline]
         fn check_u32_oct(value: Option<&str>) -> io::Result<u32> {
-            Ok(u32::from_str_radix(
+            u32::from_str_radix(
                 value.ok_or_else(|| {
                     io::Error::new(io::ErrorKind::Other, "bad numeric property line in proc")
                 })?,
                 8,
             )
-            .map_err(|e| io::Error::new(io::ErrorKind::Other, e.to_string()))?)
+            .map_err(io_err_other)
         }
 
         let mut ids = Uids::default();

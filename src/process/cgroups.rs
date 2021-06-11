@@ -19,7 +19,7 @@ impl CGroups {
     }
 
     pub fn v2(&self) -> Option<&OsStr> {
-        self.v2.as_ref().map(|s| s.as_os_str())
+        self.v2.as_deref()
     }
 
     pub fn has_v1(&self) -> bool {

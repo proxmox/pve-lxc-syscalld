@@ -46,7 +46,7 @@ impl Client {
     }
 
     async fn handle_syscall(&self, msg: &mut ProxyMessageBuffer) -> Result<(), Error> {
-        let result = match Self::handle_syscall_do(&msg).await {
+        let result = match Self::handle_syscall_do(msg).await {
             Ok(r) => r,
             Err(err) => {
                 // handle the various kinds of errors we may get:
