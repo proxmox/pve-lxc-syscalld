@@ -1,3 +1,9 @@
+rust-pve-lxc-syscalld (1.1.0-1) pve; urgency=medium
+
+  * accept negative file descriptors, as they have valid use cases
+
+ -- Proxmox Support Team <support@proxmox.com>  Fri, 07 Jan 2022 14:20:14 +0100
+
 rust-pve-lxc-syscalld (1.0.0-1) pve; urgency=medium
 
   * support pure cgroupv2 environments
