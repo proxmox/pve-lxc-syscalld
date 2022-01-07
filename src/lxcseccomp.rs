@@ -397,7 +397,12 @@ impl ProxyMessageBuffer {
     /// Checked way to get a file descriptor argument.
     #[inline]
     pub fn arg_fd(&self, arg: u32, flags: c_int) -> Result<Fd, Error> {
-        let fd = RawFd::try_from(self.arg(arg)?).map_err(|_| Error::from(Errno::EINVAL))?;
+        let fd = self.arg(arg)? as RawFd;
+        if fd < 0 {
+            // we pass those "as-is' to syscalls.
+            return Ok(Fd(fd));
+        }
+        // otherwise we'll open them from the process:
         if fd == libc::AT_FDCWD {
             Ok(self.pid_fd().fd_cwd()?)
         } else {
