@@ -1,3 +1,5 @@
+#![deny(unsafe_op_in_unsafe_fn)]
+
 use std::ffi::{OsStr, OsString};
 use std::future::Future;
 use std::io as StdIo;

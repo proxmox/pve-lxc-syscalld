@@ -69,17 +69,15 @@ pub struct ProxyMessageBuffer {
 }
 
 unsafe fn io_vec_mut<T>(value: &mut T) -> IoVecMut {
-    IoVecMut::new(std::slice::from_raw_parts_mut(
-        value as *mut T as *mut u8,
-        mem::size_of::<T>(),
-    ))
+    IoVecMut::new(unsafe {
+        std::slice::from_raw_parts_mut(value as *mut T as *mut u8, mem::size_of::<T>())
+    })
 }
 
 unsafe fn io_vec<T>(value: &T) -> IoVec {
-    IoVec::new(std::slice::from_raw_parts(
-        value as *const T as *const u8,
-        mem::size_of::<T>(),
-    ))
+    IoVec::new(unsafe {
+        std::slice::from_raw_parts(value as *const T as *const u8, mem::size_of::<T>())
+    })
 }
 
 lazy_static! {

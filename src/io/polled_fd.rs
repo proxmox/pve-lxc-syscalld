@@ -28,7 +28,7 @@ impl AsRawFd for EventedFd {
 impl FromRawFd for EventedFd {
     #[inline]
     unsafe fn from_raw_fd(fd: RawFd) -> Self {
-        Self::new(Fd::from_raw_fd(fd))
+        Self::new(unsafe { Fd::from_raw_fd(fd) })
     }
 }
 
