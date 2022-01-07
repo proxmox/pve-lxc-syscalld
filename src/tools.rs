@@ -54,9 +54,8 @@ pub mod vec {
     /// This is generally safe to call, but the contents of the vector are undefined.
     #[inline]
     pub unsafe fn uninitialized(len: usize) -> Vec<u8> {
-        let mut out = Vec::with_capacity(len);
-        out.set_len(len);
-        out
+        let data = std::alloc::alloc(std::alloc::Layout::array::<u8>(len).unwrap());
+        Vec::from_raw_parts(data as *mut u8, len, len)
     }
 }
 

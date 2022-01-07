@@ -14,11 +14,10 @@ pub const fn capacity<T: Sized>() -> usize {
 
 pub fn buffer<T: Sized>() -> Vec<u8> {
     let capacity = capacity::<T>();
-    let mut buf = Vec::with_capacity(capacity);
     unsafe {
-        buf.set_len(capacity);
+        let data = std::alloc::alloc(std::alloc::Layout::array::<u8>(capacity).unwrap());
+        Vec::from_raw_parts(data as *mut u8, capacity, capacity)
     }
-    buf
 }
 
 pub struct RawCmsgIterator<'a> {
