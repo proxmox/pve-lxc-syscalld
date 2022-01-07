@@ -96,8 +96,6 @@ impl IntoRawFd for PolledFd {
     fn into_raw_fd(self) -> RawFd {
         // for the kind of resource we're managing it should always be possible to extract it from
         // its driver
-        self.fd
-            .into_inner()
-            .into_raw_fd()
+        self.fd.into_inner().into_raw_fd()
     }
 }
