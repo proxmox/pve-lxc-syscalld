@@ -398,13 +398,13 @@ impl ProxyMessageBuffer {
     #[inline]
     pub fn arg_fd(&self, arg: u32, flags: c_int) -> Result<Fd, Error> {
         let fd = self.arg(arg)? as RawFd;
-        if fd < 0 {
-            // we pass those "as-is' to syscalls.
-            return Ok(Fd(fd));
-        }
-        // otherwise we'll open them from the process:
+        // we pass negative ones 'as-is', others get opened via the pidfd
         if fd == libc::AT_FDCWD {
+            // NOTE: we could pass this one through, but let's be explicit here, in the future we
+            // might want to reuse this one?
             Ok(self.pid_fd().fd_cwd()?)
+        } else if fd < 0 {
+            return Ok(Fd(fd));
         } else {
             Ok(self.pid_fd().fd_num(fd, flags)?)
         }
