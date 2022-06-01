@@ -1,3 +1,9 @@
+rust-pve-lxc-syscalld (1.1.1-1) pve; urgency=medium
+
+  * improve handling of AT_FDCWD as file descriptor parameter
+
+ -- Proxmox Support Team <support@proxmox.com>  Wed, 01 Jun 2022 09:42:15 +0200
+
 rust-pve-lxc-syscalld (1.1.0-1) pve; urgency=medium
 
   * accept negative file descriptors, as they have valid use cases
