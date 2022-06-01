@@ -2,10 +2,11 @@
 
 use std::convert::TryFrom;
 use std::ffi::CString;
+use std::io::{self, IoSlice, IoSliceMut};
+use std::mem;
 use std::os::raw::{c_int, c_uint};
 use std::os::unix::fs::FileExt;
 use std::os::unix::io::{FromRawFd, RawFd};
-use std::{io, mem};
 
 use anyhow::{bail, format_err, Error};
 use lazy_static::lazy_static;
@@ -13,7 +14,6 @@ use libc::pid_t;
 use nix::errno::Errno;
 
 use crate::io::cmsg;
-use crate::io::iovec::{IoVec, IoVecMut};
 use crate::io::seq_packet::SeqPacketSocket;
 use crate::process::PidFd;
 use crate::seccomp::{SeccompNotif, SeccompNotifResp, SeccompNotifSizes};
@@ -68,14 +68,14 @@ pub struct ProxyMessageBuffer {
     mem_fd: Option<std::fs::File>,
 }
 
-unsafe fn io_vec_mut<T>(value: &mut T) -> IoVecMut {
-    IoVecMut::new(unsafe {
+unsafe fn io_vec_mut<T>(value: &mut T) -> IoSliceMut {
+    IoSliceMut::new(unsafe {
         std::slice::from_raw_parts_mut(value as *mut T as *mut u8, mem::size_of::<T>())
     })
 }
 
-unsafe fn io_vec<T>(value: &T) -> IoVec {
-    IoVec::new(unsafe {
+unsafe fn io_vec<T>(value: &T) -> IoSlice {
+    IoSlice::new(unsafe {
         std::slice::from_raw_parts(value as *const T as *const u8, mem::size_of::<T>())
     })
 }
@@ -126,18 +126,16 @@ impl ProxyMessageBuffer {
             unsafe { io_vec_mut(&mut self.proxy_msg) },
             unsafe { io_vec_mut(&mut self.seccomp_notif) },
             unsafe { io_vec_mut(&mut self.seccomp_resp) },
-            IoVecMut::new(self.cookie_buf.as_mut_slice()),
+            IoSliceMut::new(self.cookie_buf.as_mut_slice()),
         ];
-
-        unsafe {
-            self.cookie_buf.set_len(0);
-        }
 
         // receive:
         let mut fd_cmsg_buf = cmsg::buffer::<[RawFd; 2]>();
-        let (datalen, cmsglen) = socket
-            .recvmsg_vectored(&mut iovec, &mut fd_cmsg_buf)
-            .await?;
+        let result = socket.recvmsg_vectored(&mut iovec, &mut fd_cmsg_buf).await;
+        unsafe {
+            self.cookie_buf.set_len(0);
+        }
+        let (datalen, cmsglen) = result?;
 
         if datalen == 0 {
             return Ok(false);

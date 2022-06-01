@@ -1,11 +1,11 @@
+use std::io::{self, IoSlice, IoSliceMut};
 use std::os::unix::io::{AsRawFd, FromRawFd, RawFd};
+use std::ptr;
 use std::task::{Context, Poll};
-use std::{io, ptr};
 
 use anyhow::Error;
 use nix::sys::socket::{self, AddressFamily, SockAddr, SockFlag, SockType};
 
-use crate::io::iovec::{IoVec, IoVecMut};
 use crate::io::polled_fd::PolledFd;
 use crate::poll_fn::poll_fn;
 use crate::tools::AssertSendSync;
@@ -94,7 +94,7 @@ impl SeqPacketSocket {
         })
     }
 
-    pub async fn sendmsg_vectored(&self, iov: &[IoVec<'_>]) -> io::Result<usize> {
+    pub async fn sendmsg_vectored(&self, iov: &[IoSlice<'_>]) -> io::Result<usize> {
         let msg = AssertSendSync(libc::msghdr {
             msg_name: ptr::null_mut(),
             msg_namelen: 0,
@@ -125,7 +125,7 @@ impl SeqPacketSocket {
     #[allow(clippy::needless_lifetimes)]
     pub async fn recvmsg_vectored(
         &self,
-        iov: &mut [IoVecMut<'_>],
+        iov: &mut [IoSliceMut<'_>],
         cmsg_buf: &mut [u8],
     ) -> io::Result<(usize, usize)> {
         let mut msg = AssertSendSync(libc::msghdr {
