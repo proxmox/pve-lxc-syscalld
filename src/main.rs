@@ -92,7 +92,6 @@ fn main() {
     for arg in &mut args {
         nonopt_arg(arg);
     }
-    drop(nonopt_arg);
 
     let path = match path {
         Some(path) => path,
