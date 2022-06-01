@@ -4,7 +4,7 @@ use std::ptr;
 use std::task::{Context, Poll};
 
 use anyhow::Error;
-use nix::sys::socket::{self, AddressFamily, SockAddr, SockFlag, SockType};
+use nix::sys::socket::{self, AddressFamily, SockFlag, SockType, SockaddrLike};
 
 use crate::io::polled_fd::PolledFd;
 use crate::poll_fn::poll_fn;
@@ -33,7 +33,7 @@ impl AsRawFd for SeqPacketListener {
 }
 
 impl SeqPacketListener {
-    pub fn bind(address: &SockAddr) -> Result<Self, Error> {
+    pub fn bind(address: &dyn SockaddrLike) -> Result<Self, Error> {
         let fd = seq_packet_socket(SockFlag::empty())?;
         socket::bind(fd.as_raw_fd(), address)?;
         socket::listen(fd.as_raw_fd(), 16)?;

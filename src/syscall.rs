@@ -76,7 +76,7 @@ pub fn get_c_string(msg: &ProxyMessageBuffer, offset: u64) -> Result<CString, Er
 
     let len = unsafe { libc::strnlen(data.as_ptr() as *const _, got) };
     if len >= got {
-        Err(nix::Error::Sys(Errno::EINVAL).into())
+        Err(Errno::EINVAL.into())
     } else {
         unsafe {
             data.set_len(len);

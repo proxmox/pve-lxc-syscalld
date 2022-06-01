@@ -7,7 +7,7 @@ use std::io::{stderr, stdout, Write};
 use std::os::unix::ffi::OsStrExt;
 
 use anyhow::{bail, format_err, Error};
-use nix::sys::socket::SockAddr;
+use nix::sys::socket::UnixAddr;
 
 #[macro_use]
 mod macros;
@@ -117,7 +117,7 @@ async fn do_main(use_sd_notify: bool, socket_path: OsString) -> Result<(), Error
     }
 
     let address =
-        SockAddr::new_unix(socket_path.as_os_str()).expect("cannot create struct sockaddr_un?");
+        UnixAddr::new(socket_path.as_os_str()).expect("cannot create struct sockaddr_un?");
 
     let mut listener = SeqPacketListener::bind(&address)
         .map_err(|e| format_err!("failed to create listening socket: {}", e))?;

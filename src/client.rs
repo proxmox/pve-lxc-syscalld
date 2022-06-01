@@ -50,9 +50,7 @@ impl Client {
             Ok(r) => r,
             Err(err) => {
                 // handle the various kinds of errors we may get:
-                if let Some(errno) = err.downcast_ref::<nix::errno::Errno>() {
-                    SyscallStatus::Err(*errno as _)
-                } else if let Some(nix::Error::Sys(errno)) = err.downcast_ref::<nix::Error>() {
+                if let Some(errno) = err.downcast_ref::<nix::Error>() {
                     SyscallStatus::Err(*errno as _)
                 } else if let Some(ioerr) = err.downcast_ref::<std::io::Error>() {
                     if let Some(errno) = ioerr.raw_os_error() {

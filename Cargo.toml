@@ -16,5 +16,5 @@ bitflags = "1.2"
 anyhow = "1.0"
 lazy_static = "1.4"
 libc = "0.2"
-nix = "0.19"
+nix = "0.24"
 tokio = { version = "1.0", features = [ "rt-multi-thread", "io-util", "net" ] }
