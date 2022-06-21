@@ -101,7 +101,13 @@ fn main() {
         }
     };
 
-    let rt = tokio::runtime::Runtime::new().expect("failed to spawn tokio runtime");
+    let cpus = num_cpus::get();
+
+    let rt = tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .worker_threads(cpus.max(2).min(4))
+        .build()
+        .expect("failed to spawn tokio runtime");
 
     if let Err(err) = rt.block_on(do_main(use_sd_notify, path)) {
         eprintln!("error: {}", err);
