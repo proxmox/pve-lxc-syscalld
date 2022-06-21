@@ -31,7 +31,7 @@ impl Client {
     }
 
     pub async fn main(self: Arc<Self>) {
-        self.clone().wrap_error(self.main_do()).await
+        Arc::clone(&self).wrap_error(self.main_do()).await
     }
 
     async fn main_do(self: Arc<Self>) -> Result<(), Error> {
