@@ -1,3 +1,16 @@
+rust-pve-lxc-syscalld (1.2.0-1) pve; urgency=medium
+
+  * update to rust edition 2021
+
+  * update nix dependency to 0.24
+
+  * keep worker count between 2 and 4 to avoid lots of idle threads on high
+    thread cpus, as we rarely get involved in container activity
+
+  * use non-blocking i/o for sockets
+
+ -- Proxmox Support Team <support@proxmox.com>  Thu, 07 Jul 2022 15:18:20 +0200
+
 rust-pve-lxc-syscalld (1.1.1-1) pve; urgency=medium
 
   * improve handling of AT_FDCWD as file descriptor parameter
