@@ -5,9 +5,9 @@ use std::os::unix::io::{AsRawFd, FromRawFd, IntoRawFd, RawFd};
 use std::pin::Pin;
 use std::task::{Context, Poll};
 
+use tokio::io::unix::AsyncFd;
 use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
 
-use crate::io::polled_fd::PolledFd;
 use crate::io::rw_traits;
 use crate::tools::Fd;
 
@@ -44,9 +44,9 @@ pub fn pipe_fds() -> io::Result<(PipeFd<rw_traits::Read>, PipeFd<rw_traits::Writ
 }
 
 /// Tokio supported pipe file descriptor. `tokio::fs::File` requires tokio's complete file system
-/// feature gate, so we just use this `PolledFd` wrapper.
+/// feature gate, so we just use this `AsyncFd` wrapper.
 pub struct Pipe<RW> {
-    fd: PolledFd,
+    fd: AsyncFd<Fd>,
     _phantom: PhantomData<RW>,
 }
 
@@ -55,7 +55,7 @@ impl<RW> TryFrom<PipeFd<RW>> for Pipe<RW> {
 
     fn try_from(fd: PipeFd<RW>) -> io::Result<Self> {
         Ok(Self {
-            fd: PolledFd::new(fd.into_fd())?,
+            fd: AsyncFd::new(fd.into_fd())?,
             _phantom: PhantomData,
         })
     }
@@ -71,7 +71,7 @@ impl<RW> AsRawFd for Pipe<RW> {
 impl<RW> IntoRawFd for Pipe<RW> {
     #[inline]
     fn into_raw_fd(self) -> RawFd {
-        self.fd.into_raw_fd()
+        self.fd.into_inner().into_raw_fd()
     }
 }
 
@@ -87,16 +87,28 @@ impl<RW: rw_traits::HasRead> AsyncRead for Pipe<RW> {
         cx: &mut Context<'_>,
         buf: &mut ReadBuf,
     ) -> Poll<io::Result<()>> {
-        self.fd.wrap_read(cx, || {
-            let fd = self.as_raw_fd();
-            let mem = buf.initialize_unfilled();
-            c_result!(unsafe { libc::read(fd, mem.as_mut_ptr() as *mut libc::c_void, mem.len()) })
-                .map(|received| {
-                    if received > 0 {
-                        buf.advance(received as usize)
-                    }
-                })
-        })
+        let mut guard = ready!(self.fd.poll_read_ready(cx))?;
+
+        let fd = self.as_raw_fd();
+        let mem = buf.initialize_unfilled();
+        match c_result!(unsafe { libc::read(fd, mem.as_mut_ptr() as *mut libc::c_void, mem.len()) })
+        {
+            Ok(received) => {
+                if received > 0 {
+                    buf.advance(received as usize)
+                }
+                guard.retain_ready();
+                Poll::Ready(Ok(()))
+            }
+            Err(err) if err.kind() == io::ErrorKind::WouldBlock => {
+                guard.clear_ready();
+                Poll::Pending
+            }
+            Err(err) => {
+                guard.retain_ready();
+                Poll::Ready(Err(err))
+            }
+        }
     }
 }
 
@@ -106,11 +118,24 @@ impl<RW: rw_traits::HasWrite> AsyncWrite for Pipe<RW> {
         cx: &mut Context<'_>,
         buf: &[u8],
     ) -> Poll<io::Result<usize>> {
-        self.fd.wrap_write(cx, || {
-            let fd = self.as_raw_fd();
-            c_result!(unsafe { libc::write(fd, buf.as_ptr() as *const libc::c_void, buf.len()) })
-                .map(|res| res as usize)
-        })
+        let mut guard = ready!(self.fd.poll_write_ready(cx))?;
+
+        let fd = self.as_raw_fd();
+        match c_result!(unsafe { libc::write(fd, buf.as_ptr() as *const libc::c_void, buf.len()) })
+        {
+            Ok(res) => {
+                guard.retain_ready();
+                Poll::Ready(Ok(res as usize))
+            }
+            Err(err) if err.kind() == io::ErrorKind::WouldBlock => {
+                guard.clear_ready();
+                Poll::Pending
+            }
+            Err(err) => {
+                guard.retain_ready();
+                Poll::Ready(Err(err))
+            }
+        }
     }
 
     fn poll_flush(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<io::Result<()>> {

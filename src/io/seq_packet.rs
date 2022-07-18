@@ -1,13 +1,11 @@
 use std::io::{self, IoSlice, IoSliceMut};
 use std::os::unix::io::{AsRawFd, FromRawFd, RawFd};
 use std::ptr;
-use std::task::{Context, Poll};
 
 use anyhow::Error;
 use nix::sys::socket::{self, AddressFamily, SockFlag, SockType, SockaddrLike};
+use tokio::io::unix::AsyncFd;
 
-use crate::io::polled_fd::PolledFd;
-use crate::poll_fn::poll_fn;
 use crate::tools::AssertSendSync;
 use crate::tools::Fd;
 
@@ -22,7 +20,7 @@ fn seq_packet_socket(flags: SockFlag) -> nix::Result<Fd> {
 }
 
 pub struct SeqPacketListener {
-    fd: PolledFd,
+    fd: AsyncFd<Fd>,
 }
 
 impl AsRawFd for SeqPacketListener {
@@ -38,14 +36,13 @@ impl SeqPacketListener {
         socket::bind(fd.as_raw_fd(), address)?;
         socket::listen(fd.as_raw_fd(), 16)?;
 
-        let fd = PolledFd::new(fd)?;
+        let fd = AsyncFd::new(fd)?;
 
         Ok(Self { fd })
     }
 
-    pub fn poll_accept(&mut self, cx: &mut Context) -> Poll<io::Result<SeqPacketSocket>> {
-        let fd = self.as_raw_fd();
-        let res = self.fd.wrap_read(cx, || {
+    pub async fn accept(&mut self) -> io::Result<SeqPacketSocket> {
+        let fd = super::wrap_read(&self.fd, |fd| {
             c_result!(unsafe {
                 libc::accept4(
                     fd,
@@ -54,22 +51,16 @@ impl SeqPacketListener {
                     libc::SOCK_CLOEXEC | libc::SOCK_NONBLOCK,
                 )
             })
-            .map(|fd| unsafe { Fd::from_raw_fd(fd as RawFd) })
-        });
-        match res {
-            Poll::Pending => Poll::Pending,
-            Poll::Ready(Ok(fd)) => Poll::Ready(SeqPacketSocket::new(fd)),
-            Poll::Ready(Err(err)) => Poll::Ready(Err(err)),
-        }
-    }
+        })
+        .await?;
 
-    pub async fn accept(&mut self) -> io::Result<SeqPacketSocket> {
-        poll_fn(move |cx| self.poll_accept(cx)).await
+        let fd = unsafe { Fd::from_raw_fd(fd as RawFd) };
+        SeqPacketSocket::new(fd)
     }
 }
 
 pub struct SeqPacketSocket {
-    fd: PolledFd,
+    fd: AsyncFd<Fd>,
 }
 
 impl AsRawFd for SeqPacketSocket {
@@ -82,21 +73,16 @@ impl AsRawFd for SeqPacketSocket {
 impl SeqPacketSocket {
     pub fn new(fd: Fd) -> io::Result<Self> {
         Ok(Self {
-            fd: PolledFd::new(fd)?,
+            fd: AsyncFd::new(fd)?,
         })
     }
 
-    pub fn poll_sendmsg(
-        &self,
-        cx: &mut Context,
-        msg: &AssertSendSync<libc::msghdr>,
-    ) -> Poll<io::Result<usize>> {
-        let fd = self.fd.as_raw_fd();
-
-        self.fd.wrap_write(cx, || {
+    async fn sendmsg(&self, msg: &AssertSendSync<libc::msghdr>) -> io::Result<usize> {
+        let rc = super::wrap_write(&self.fd, |fd| {
             c_result!(unsafe { libc::sendmsg(fd, &msg.0 as *const libc::msghdr, 0) })
-                .map(|rc| rc as usize)
         })
+        .await?;
+        Ok(rc as usize)
     }
 
     pub async fn sendmsg_vectored(&self, iov: &[IoSlice<'_>]) -> io::Result<usize> {
@@ -110,20 +96,15 @@ impl SeqPacketSocket {
             msg_flags: 0,
         });
 
-        poll_fn(move |cx| self.poll_sendmsg(cx, &msg)).await
+        self.sendmsg(&msg).await
     }
 
-    pub fn poll_recvmsg(
-        &self,
-        cx: &mut Context,
-        msg: &mut AssertSendSync<libc::msghdr>,
-    ) -> Poll<io::Result<usize>> {
-        let fd = self.fd.as_raw_fd();
-
-        self.fd.wrap_read(cx, || {
+    async fn recvmsg(&self, msg: &mut AssertSendSync<libc::msghdr>) -> io::Result<usize> {
+        let rc = super::wrap_read(&self.fd, move |fd| {
             c_result!(unsafe { libc::recvmsg(fd, &mut msg.0 as *mut libc::msghdr, 0) })
-                .map(|rc| rc as usize)
         })
+        .await?;
+        Ok(rc as usize)
     }
 
     // clippy is wrong about this one
@@ -143,7 +124,7 @@ impl SeqPacketSocket {
             msg_flags: libc::MSG_CMSG_CLOEXEC,
         });
 
-        let data_size = poll_fn(|cx| self.poll_recvmsg(cx, &mut msg)).await?;
+        let data_size = self.recvmsg(&mut msg).await?;
         Ok((data_size, msg.0.msg_controllen as usize))
     }
 
