@@ -30,6 +30,7 @@ pub mod tools;
 
 use crate::io::seq_packet::SeqPacketListener;
 
+#[track_caller]
 pub fn spawn(fut: impl Future<Output = ()> + Send + 'static) {
     tokio::spawn(fut);
 }
