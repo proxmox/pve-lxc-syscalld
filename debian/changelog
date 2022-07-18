@@ -1,3 +1,9 @@
+rust-pve-lxc-syscalld (1.2.1-1) pve; urgency=medium
+
+  * revert non-blocking socket i/o patch
+
+ -- Proxmox Support Team <support@proxmox.com>  Mon, 18 Jul 2022 11:17:54 +0200
+
 rust-pve-lxc-syscalld (1.2.0-1) pve; urgency=medium
 
   * update to rust edition 2021
