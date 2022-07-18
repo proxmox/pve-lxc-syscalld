@@ -208,7 +208,7 @@ impl ProxyMessageBuffer {
             unsafe { io_vec(&self.seccomp_notif) },
             unsafe { io_vec(&self.seccomp_resp) },
         ];
-        let len = iov.iter().map(|e| e.len()).sum();
+        let len: usize = iov.iter().map(|e| e.len()).sum();
         if socket.sendmsg_vectored(&iov).await? != len {
             io_bail!("truncated message?");
         }
