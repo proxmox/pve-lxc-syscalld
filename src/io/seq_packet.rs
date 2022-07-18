@@ -47,7 +47,12 @@ impl SeqPacketListener {
         let fd = self.as_raw_fd();
         let res = self.fd.wrap_read(cx, || {
             c_result!(unsafe {
-                libc::accept4(fd, ptr::null_mut(), ptr::null_mut(), libc::SOCK_CLOEXEC)
+                libc::accept4(
+                    fd,
+                    ptr::null_mut(),
+                    ptr::null_mut(),
+                    libc::SOCK_CLOEXEC | libc::SOCK_NONBLOCK,
+                )
             })
             .map(|fd| unsafe { Fd::from_raw_fd(fd as RawFd) })
         });
