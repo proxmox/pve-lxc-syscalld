@@ -84,13 +84,3 @@ macro_rules! io_bail {
         return Err(::std::io::Error::new(::std::io::ErrorKind::Other, format!($($msg)*)));
     };
 }
-
-macro_rules! ready {
-    ($expr:expr) => {{
-        use std::task::Poll;
-        match $expr {
-            Poll::Ready(v) => v,
-            Poll::Pending => return Poll::Pending,
-        }
-    }};
-}

@@ -9,6 +9,8 @@ license = "AGPL-3"
 description = "Proxmox LXC seccomp-proxy syscall handler daemon"
 homepage = "https://www.proxmox.com"
 
+rust-version = "1.64"
+
 exclude = [ "build", "debian" ]
 
 [dependencies]
