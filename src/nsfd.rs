@@ -4,7 +4,7 @@ use std::ffi::CStr;
 use std::io;
 use std::marker::PhantomData;
 use std::os::raw::c_int;
-use std::os::unix::io::{AsRawFd, FromRawFd, IntoRawFd, RawFd};
+use std::os::unix::io::RawFd;
 
 pub mod ns_type {
     pub trait NsType {

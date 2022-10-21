@@ -3,7 +3,7 @@
 //! Note that this should stay small, otherwise we should introduce a dependency on our `proxmox`
 //! crate as that's where we have all this stuff usually...
 
-use std::os::unix::io::{AsRawFd, FromRawFd, IntoRawFd, RawFd};
+use std::os::unix::io::{FromRawFd, IntoRawFd, RawFd};
 
 /// Guard a raw file descriptor with a drop handler. This is mostly useful when access to an owned
 /// `RawFd` is required without the corresponding handler object (such as when only the file
