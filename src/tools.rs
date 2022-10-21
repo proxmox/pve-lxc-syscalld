@@ -3,7 +3,15 @@
 //! Note that this should stay small, otherwise we should introduce a dependency on our `proxmox`
 //! crate as that's where we have all this stuff usually...
 
-use std::os::unix::io::{FromRawFd, IntoRawFd, RawFd};
+use std::os::unix::io::{AsRawFd, FromRawFd, IntoRawFd, RawFd};
+
+pub fn set_fd_nonblocking<T: AsRawFd + ?Sized>(fd: &T, on: bool) -> nix::Result<libc::c_int> {
+    use nix::fcntl;
+    let fd = fd.as_raw_fd();
+    let mut flags = fcntl::OFlag::from_bits(fcntl::fcntl(fd, fcntl::FcntlArg::F_GETFL)?).unwrap();
+    flags.set(fcntl::OFlag::O_NONBLOCK, on);
+    fcntl::fcntl(fd, fcntl::FcntlArg::F_SETFL(flags))
+}
 
 /// Guard a raw file descriptor with a drop handler. This is mostly useful when access to an owned
 /// `RawFd` is required without the corresponding handler object (such as when only the file
@@ -21,11 +29,7 @@ impl FromRawFd for Fd {
 
 impl Fd {
     pub fn set_nonblocking(&mut self, nb: bool) -> nix::Result<libc::c_int> {
-        use nix::fcntl;
-        let mut flags =
-            fcntl::OFlag::from_bits(fcntl::fcntl(self.0, fcntl::FcntlArg::F_GETFL)?).unwrap();
-        flags.set(fcntl::OFlag::O_NONBLOCK, nb);
-        fcntl::fcntl(self.0, fcntl::FcntlArg::F_SETFL(flags))
+        set_fd_nonblocking(self, nb)
     }
 }
 
@@ -62,11 +66,11 @@ pub mod vec {
 }
 
 pub trait FromFd {
-    fn from_fd(fd: Fd) -> Self;
+    fn from_fd<T: IntoRawFd>(fd: T) -> Self;
 }
 
 impl<T: FromRawFd> FromFd for T {
-    fn from_fd(fd: Fd) -> Self {
+    fn from_fd<F: IntoRawFd>(fd: F) -> Self {
         unsafe { Self::from_raw_fd(fd.into_raw_fd()) }
     }
 }
