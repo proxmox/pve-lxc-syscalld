@@ -4,7 +4,7 @@ use std::ffi::{CStr, CString, OsString};
 use std::io::{self, BufRead, BufReader};
 use std::os::raw::c_int;
 use std::os::unix::ffi::OsStringExt;
-use std::os::unix::io::{AsRawFd, FromRawFd, IntoRawFd, RawFd};
+use std::os::unix::io::{AsRawFd, FromRawFd, IntoRawFd, OwnedFd, RawFd};
 
 use anyhow::{bail, Error};
 use libc::pid_t;
@@ -12,7 +12,6 @@ use libc::pid_t;
 use crate::capability::Capabilities;
 use crate::error::io_err_other;
 use crate::nsfd::{ns_type, NsFd};
-use crate::tools::Fd;
 
 use super::{CGroups, IdMap, IdMapEntry, ProcStatus, Uids, UserCaps};
 
@@ -38,7 +37,7 @@ impl PidFd {
     ///
     /// The file descriptor must already be a valid pidfd, this is not checked. This function only
     /// fails if reading the pid from the pidfd's proc entry fails.
-    pub unsafe fn try_from_fd(fd: Fd) -> io::Result<Self> {
+    pub unsafe fn try_from_fd(fd: OwnedFd) -> io::Result<Self> {
         #[allow(clippy::unnecessary_cast)] // pid_t is a type alias
         let mut this = Self(fd.into_raw_fd(), -1 as pid_t);
         let pid = this.read_pid()?;
@@ -58,22 +57,22 @@ impl PidFd {
         NsFd::openat(self.0, c_str!("ns/user"))
     }
 
-    fn fd(&self, path: &CStr, flags: c_int, mode: c_int) -> io::Result<Fd> {
-        Ok(Fd(c_try!(unsafe {
-            libc::openat(
+    fn fd(&self, path: &CStr, flags: c_int, mode: c_int) -> io::Result<OwnedFd> {
+        Ok(unsafe {
+            OwnedFd::from_raw_fd(c_try!(libc::openat(
                 self.as_raw_fd(),
                 path.as_ptr() as *const _,
                 flags | libc::O_CLOEXEC,
                 mode,
-            )
-        })))
+            )))
+        })
     }
 
-    pub fn fd_cwd(&self) -> io::Result<Fd> {
+    pub fn fd_cwd(&self) -> io::Result<OwnedFd> {
         self.fd(c_str!("cwd"), libc::O_DIRECTORY, 0)
     }
 
-    pub fn fd_num(&self, num: RawFd, flags: c_int) -> io::Result<Fd> {
+    pub fn fd_num(&self, num: RawFd, flags: c_int) -> io::Result<OwnedFd> {
         let path = format!("fd/{}\0", num);
         self.fd(
             unsafe { CStr::from_bytes_with_nul_unchecked(path.as_bytes()) },

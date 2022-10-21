@@ -57,9 +57,9 @@ impl Fork {
         let pid = c_try!(unsafe { libc::fork() });
         if pid == 0 {
             drop(pipe_r);
-            let mut pipe_w = pipe_w.into_fd();
+            let pipe_w = pipe_w.into_fd();
             let _ = std::panic::catch_unwind(move || {
-                pipe_w.set_nonblocking(false).unwrap();
+                crate::tools::set_fd_nonblocking(&pipe_w, false).unwrap();
                 let mut pipe_w = unsafe { std::fs::File::from_raw_fd(pipe_w.into_raw_fd()) };
                 let out = match func() {
                     Ok(SyscallStatus::Ok(val)) => Data {

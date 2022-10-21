@@ -1,5 +1,5 @@
 use std::io::{self, IoSlice, IoSliceMut};
-use std::os::unix::io::{AsRawFd, FromRawFd, RawFd};
+use std::os::unix::io::{AsRawFd, FromRawFd, OwnedFd, RawFd};
 use std::ptr;
 
 use anyhow::Error;
@@ -7,20 +7,19 @@ use nix::sys::socket::{self, AddressFamily, SockFlag, SockType, SockaddrLike};
 use tokio::io::unix::AsyncFd;
 
 use crate::tools::AssertSendSync;
-use crate::tools::Fd;
 
-fn seq_packet_socket(flags: SockFlag) -> nix::Result<Fd> {
+fn seq_packet_socket(flags: SockFlag) -> nix::Result<OwnedFd> {
     let fd = socket::socket(
         AddressFamily::Unix,
         SockType::SeqPacket,
         flags | SockFlag::SOCK_CLOEXEC,
         None,
     )?;
-    Ok(unsafe { Fd::from_raw_fd(fd) })
+    Ok(unsafe { OwnedFd::from_raw_fd(fd) })
 }
 
 pub struct SeqPacketListener {
-    fd: AsyncFd<Fd>,
+    fd: AsyncFd<OwnedFd>,
 }
 
 impl AsRawFd for SeqPacketListener {
@@ -54,13 +53,13 @@ impl SeqPacketListener {
         })
         .await?;
 
-        let fd = unsafe { Fd::from_raw_fd(fd as RawFd) };
+        let fd = unsafe { OwnedFd::from_raw_fd(fd as RawFd) };
         SeqPacketSocket::new(fd)
     }
 }
 
 pub struct SeqPacketSocket {
-    fd: AsyncFd<Fd>,
+    fd: AsyncFd<OwnedFd>,
 }
 
 impl AsRawFd for SeqPacketSocket {
@@ -71,7 +70,7 @@ impl AsRawFd for SeqPacketSocket {
 }
 
 impl SeqPacketSocket {
-    pub fn new(fd: Fd) -> io::Result<Self> {
+    pub fn new(fd: OwnedFd) -> io::Result<Self> {
         Ok(Self {
             fd: AsyncFd::new(fd)?,
         })

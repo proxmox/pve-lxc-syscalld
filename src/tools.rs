@@ -3,7 +3,7 @@
 //! Note that this should stay small, otherwise we should introduce a dependency on our `proxmox`
 //! crate as that's where we have all this stuff usually...
 
-use std::os::unix::io::{AsRawFd, FromRawFd, IntoRawFd, RawFd};
+use std::os::unix::io::{AsRawFd, FromRawFd, IntoRawFd};
 
 pub fn set_fd_nonblocking<T: AsRawFd + ?Sized>(fd: &T, on: bool) -> nix::Result<libc::c_int> {
     use nix::fcntl;
@@ -11,33 +11,6 @@ pub fn set_fd_nonblocking<T: AsRawFd + ?Sized>(fd: &T, on: bool) -> nix::Result<
     let mut flags = fcntl::OFlag::from_bits(fcntl::fcntl(fd, fcntl::FcntlArg::F_GETFL)?).unwrap();
     flags.set(fcntl::OFlag::O_NONBLOCK, on);
     fcntl::fcntl(fd, fcntl::FcntlArg::F_SETFL(flags))
-}
-
-/// Guard a raw file descriptor with a drop handler. This is mostly useful when access to an owned
-/// `RawFd` is required without the corresponding handler object (such as when only the file
-/// descriptor number is required in a closure which may be dropped instead of being executed).
-#[repr(transparent)]
-pub struct Fd(pub RawFd);
-
-file_descriptor_impl!(Fd);
-
-impl FromRawFd for Fd {
-    unsafe fn from_raw_fd(fd: RawFd) -> Self {
-        Self(fd)
-    }
-}
-
-impl Fd {
-    pub fn set_nonblocking(&mut self, nb: bool) -> nix::Result<libc::c_int> {
-        set_fd_nonblocking(self, nb)
-    }
-}
-
-impl AsRef<RawFd> for Fd {
-    #[inline]
-    fn as_ref(&self) -> &RawFd {
-        &self.0
-    }
 }
 
 /// Byte vector utilities.

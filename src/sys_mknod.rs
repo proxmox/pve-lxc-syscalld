@@ -1,5 +1,5 @@
 use std::ffi::CString;
-use std::os::unix::io::AsRawFd;
+use std::os::unix::io::{AsRawFd, OwnedFd};
 
 use anyhow::Error;
 use nix::errno::Errno;
@@ -10,7 +10,6 @@ use crate::lxcseccomp::ProxyMessageBuffer;
 use crate::process::PidFd;
 use crate::sc_libc_try;
 use crate::syscall::SyscallStatus;
-use crate::tools::Fd;
 
 pub async fn mknod(msg: &ProxyMessageBuffer) -> Result<SyscallStatus, Error> {
     let mode = msg.arg_mode_t(1)?;
@@ -61,7 +60,7 @@ fn check_mknod_dev(mode: stat::mode_t, dev: stat::dev_t) -> bool {
 
 async fn do_mknodat(
     pidfd: &PidFd,
-    dirfd: Fd,
+    dirfd: OwnedFd,
     pathname: CString,
     mode: stat::mode_t,
     dev: stat::dev_t,

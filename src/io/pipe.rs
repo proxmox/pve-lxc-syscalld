@@ -1,7 +1,7 @@
 use std::convert::{TryFrom, TryInto};
 use std::io;
 use std::marker::PhantomData;
-use std::os::unix::io::{AsRawFd, FromRawFd, IntoRawFd, RawFd};
+use std::os::unix::io::{AsRawFd, FromRawFd, IntoRawFd, OwnedFd, RawFd};
 use std::pin::Pin;
 use std::task::{Context, Poll};
 
@@ -9,7 +9,6 @@ use tokio::io::unix::AsyncFd;
 use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
 
 use crate::io::rw_traits;
-use crate::tools::Fd;
 
 pub use rw_traits::{Read, Write};
 
@@ -20,15 +19,15 @@ pub use rw_traits::{Read, Write};
 /// from the reactor, which will just break.
 ///
 /// So we start out with this type which can be "upgraded" or "downgraded" into a `Pipe<T>` or
-/// `Fd`.
-pub struct PipeFd<RW>(Fd, PhantomData<RW>);
+/// `OwnedFd`.
+pub struct PipeFd<RW>(OwnedFd, PhantomData<RW>);
 
 impl<RW> PipeFd<RW> {
-    pub fn new(fd: Fd) -> Self {
+    pub fn new(fd: OwnedFd) -> Self {
         Self(fd, PhantomData)
     }
 
-    pub fn into_fd(self) -> Fd {
+    pub fn into_fd(self) -> OwnedFd {
         self.0
     }
 }
@@ -38,7 +37,7 @@ pub fn pipe_fds() -> io::Result<(PipeFd<rw_traits::Read>, PipeFd<rw_traits::Writ
 
     c_try!(unsafe { libc::pipe2(pfd.as_mut_ptr(), libc::O_CLOEXEC) });
 
-    let (fd_in, fd_out) = unsafe { (Fd::from_raw_fd(pfd[0]), Fd::from_raw_fd(pfd[1])) };
+    let (fd_in, fd_out) = unsafe { (OwnedFd::from_raw_fd(pfd[0]), OwnedFd::from_raw_fd(pfd[1])) };
 
     Ok((PipeFd::new(fd_in), PipeFd::new(fd_out)))
 }
@@ -46,7 +45,7 @@ pub fn pipe_fds() -> io::Result<(PipeFd<rw_traits::Read>, PipeFd<rw_traits::Writ
 /// Tokio supported pipe file descriptor. `tokio::fs::File` requires tokio's complete file system
 /// feature gate, so we just use this `AsyncFd` wrapper.
 pub struct Pipe<RW> {
-    fd: AsyncFd<Fd>,
+    fd: AsyncFd<OwnedFd>,
     _phantom: PhantomData<RW>,
 }
 

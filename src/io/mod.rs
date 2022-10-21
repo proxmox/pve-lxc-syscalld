@@ -1,16 +1,14 @@
 use std::io;
-use std::os::unix::io::{AsRawFd, RawFd};
+use std::os::unix::io::{AsRawFd, OwnedFd, RawFd};
 
 use tokio::io::unix::AsyncFd;
-
-use crate::tools::Fd;
 
 pub mod cmsg;
 pub mod pipe;
 pub mod rw_traits;
 pub mod seq_packet;
 
-pub async fn wrap_read<R, F>(async_fd: &AsyncFd<Fd>, mut call: F) -> io::Result<R>
+pub async fn wrap_read<R, F>(async_fd: &AsyncFd<OwnedFd>, mut call: F) -> io::Result<R>
 where
     F: FnMut(RawFd) -> io::Result<R>,
 {
@@ -28,7 +26,7 @@ where
     }
 }
 
-pub async fn wrap_write<R, F>(async_fd: &AsyncFd<Fd>, mut call: F) -> io::Result<R>
+pub async fn wrap_write<R, F>(async_fd: &AsyncFd<OwnedFd>, mut call: F) -> io::Result<R>
 where
     F: FnMut(RawFd) -> io::Result<R>,
 {

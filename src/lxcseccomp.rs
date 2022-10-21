@@ -6,7 +6,7 @@ use std::io::{self, IoSlice, IoSliceMut};
 use std::mem;
 use std::os::raw::{c_int, c_uint};
 use std::os::unix::fs::FileExt;
-use std::os::unix::io::{FromRawFd, RawFd};
+use std::os::unix::io::{FromRawFd, OwnedFd, RawFd};
 
 use anyhow::{bail, format_err, Error};
 use lazy_static::lazy_static;
@@ -17,7 +17,7 @@ use crate::io::cmsg;
 use crate::io::seq_packet::SeqPacketSocket;
 use crate::process::PidFd;
 use crate::seccomp::{SeccompNotif, SeccompNotifResp, SeccompNotifSizes};
-use crate::tools::{Fd, FromFd};
+use crate::tools::FromFd;
 
 /// Seccomp notification proxy message sent by the lxc monitor.
 ///
@@ -153,13 +153,13 @@ impl ProxyMessageBuffer {
             bail!("expected SCM_RIGHTS control message");
         }
 
-        let fds: Vec<Fd> = cmsg
+        let fds: Vec<OwnedFd> = cmsg
             .data
             .chunks_exact(mem::size_of::<RawFd>())
             .map(|chunk| unsafe {
                 // clippy bug
                 #[allow(clippy::cast_ptr_alignment)]
-                Fd::from_raw_fd(std::ptr::read_unaligned(chunk.as_ptr() as _))
+                OwnedFd::from_raw_fd(std::ptr::read_unaligned(chunk.as_ptr() as _))
             })
             .collect();
 
@@ -394,7 +394,7 @@ impl ProxyMessageBuffer {
 
     /// Checked way to get a file descriptor argument.
     #[inline]
-    pub fn arg_fd(&self, arg: u32, flags: c_int) -> Result<Fd, Error> {
+    pub fn arg_fd(&self, arg: u32, flags: c_int) -> Result<OwnedFd, Error> {
         let fd = self.arg(arg)? as RawFd;
         // we pass negative ones 'as-is', others get opened via the pidfd
         Ok(if fd == libc::AT_FDCWD {
@@ -402,7 +402,7 @@ impl ProxyMessageBuffer {
             // might want to reuse this one?
             self.pid_fd().fd_cwd()?
         } else if fd < 0 {
-            Fd(fd)
+            unsafe { OwnedFd::from_raw_fd(fd) }
         } else {
             self.pid_fd().fd_num(fd, flags)?
         })
