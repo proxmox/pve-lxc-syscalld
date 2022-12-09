@@ -124,7 +124,7 @@ impl SeqPacketSocket {
         });
 
         let data_size = self.recvmsg(&mut msg).await?;
-        Ok((data_size, msg.0.msg_controllen as usize))
+        Ok((data_size, msg.0.msg_controllen))
     }
 
     #[inline]

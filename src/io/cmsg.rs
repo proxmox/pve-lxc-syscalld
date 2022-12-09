@@ -47,7 +47,7 @@ impl<'a> Iterator for RawCmsgIterator<'a> {
         let hdr: cmsghdr = unsafe { std::ptr::read_unaligned(buf.as_ptr() as *const cmsghdr) };
         let data_off = mem::size_of::<cmsghdr>();
         let data_end = hdr.cmsg_len;
-        let next_hdr = align(hdr.cmsg_len as usize);
+        let next_hdr = align(hdr.cmsg_len);
         let data = &buf[data_off..data_end];
         let item = ControlMessageRef {
             cmsg_level: hdr.cmsg_level,

@@ -106,12 +106,12 @@ fn main() {
 
     let rt = tokio::runtime::Builder::new_multi_thread()
         .enable_all()
-        .worker_threads(cpus.max(2).min(4))
+        .worker_threads(cpus.clamp(2, 4))
         .build()
         .expect("failed to spawn tokio runtime");
 
     if let Err(err) = rt.block_on(do_main(use_sd_notify, path)) {
-        eprintln!("error: {}", err);
+        eprintln!("error: {err}");
         std::process::exit(1);
     }
 }

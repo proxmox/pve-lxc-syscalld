@@ -82,7 +82,7 @@ unsafe fn io_vec<T>(value: &T) -> IoSlice {
 
 lazy_static! {
     static ref SECCOMP_SIZES: SeccompNotifSizes = SeccompNotifSizes::get_checked()
-        .map_err(|e| panic!("{}\nrefusing to run", e))
+        .map_err(|e| panic!("{e}\nrefusing to run"))
         .unwrap();
 }
 

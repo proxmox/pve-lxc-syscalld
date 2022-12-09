@@ -24,7 +24,7 @@ impl PidFd {
     }
 
     pub fn open(pid: pid_t) -> io::Result<Self> {
-        let path = CString::new(format!("/proc/{}", pid)).unwrap();
+        let path = CString::new(format!("/proc/{pid}")).unwrap();
 
         let fd = c_try!(unsafe { libc::open(path.as_ptr(), libc::O_DIRECTORY | libc::O_CLOEXEC) });
 
@@ -73,7 +73,7 @@ impl PidFd {
     }
 
     pub fn fd_num(&self, num: RawFd, flags: c_int) -> io::Result<OwnedFd> {
-        let path = format!("fd/{}\0", num);
+        let path = format!("fd/{num}\0");
         self.fd(
             unsafe { CStr::from_bytes_with_nul_unchecked(path.as_bytes()) },
             flags,

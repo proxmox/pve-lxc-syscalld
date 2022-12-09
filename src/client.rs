@@ -23,9 +23,9 @@ impl Client {
         F: std::future::Future<Output = Result<(), Error>>,
     {
         if let Err(err) = fut.await {
-            eprintln!("client error, dropping connection: {}", err);
+            eprintln!("client error, dropping connection: {err}");
             if let Err(err) = self.socket.shutdown(nix::sys::socket::Shutdown::Both) {
-                eprintln!("    (error shutting down client socket: {})", err);
+                eprintln!("    (error shutting down client socket: {err})");
             }
         }
     }
