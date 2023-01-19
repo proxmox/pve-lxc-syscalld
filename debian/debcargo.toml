@@ -4,7 +4,7 @@ maintainer = "Proxmox Support Team <support@proxmox.com>"
 
 [source]
 section = "admin"
-build_depends = [ "debhelper (>= 12~)", "bash-completion" ]
+build_depends = [ "debhelper (>= 12~)", "bash-completion", "libsystemd-dev" ]
 build_depends_excludes = [ "debhelper (>=11)" ]
 # TODO:
 vcs_git = ""
