@@ -1,3 +1,9 @@
+pve-lxc-syscalld (1.3.0) bookworm; urgency=medium
+
+  * rebuild for Debian 12 bookworm based release series
+
+ -- Proxmox Support Team <support@proxmox.com>  Wed, 24 May 2023 13:33:14 +0200
+
 rust-pve-lxc-syscalld (1.2.2-1) pve; urgency=medium
 
   * remove old poll/event handling for SEQPACKET socket
