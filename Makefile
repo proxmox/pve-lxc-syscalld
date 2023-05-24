@@ -20,7 +20,9 @@ COMPILED_BINS := \
 	$(addprefix $(COMPILEDIR)/,$(SERVICE_BIN))
 
 DEB=$(PACKAGE)_$(DEB_VERSION)_$(DEB_HOST_ARCH).deb
-DSC=rust-$(PACKAGE)_$(DEB_VERSION).dsc
+DSC=$(PACKAGE)_$(DEB_VERSION).dsc
+
+BUILDDIR ?= $(PACKAGE)-$(DEB_VERSION_UPSTREAM)
 
 all: cargo-build $(SUBDIRS)
 
@@ -39,12 +41,6 @@ test:
 .PHONY: check
 check: test
 
-.PHONY: san
-san:
-	cargo +nightly fmt -- --check
-	cargo clippy
-	cargo test
-
 $(COMPILED_BINS): cargo-build
 
 install: $(COMPILED_BINS)
@@ -52,42 +48,37 @@ install: $(COMPILED_BINS)
 	$(foreach i,$(SERVICE_BIN), \
 	    install -m755 $(COMPILEDIR)/$(i) $(DESTDIR)$(LIBEXECDIR)/pve-lxc-syscalld/ ;)
 
-.PHONY: build
-build:
-	rm -rf build
-	debcargo package \
-	  --config debian/debcargo.toml \
-	  --changelog-ready \
-	  --no-overlay-write-back \
-	  --directory build \
-	  pve-lxc-syscalld \
-	  $(shell dpkg-parsechangelog -l debian/changelog -SVersion | sed -e 's/-.*//')
-	sed -e '1,/^$$/ ! d' build/debian/control > build/debian/control.src
-	cat build/debian/control.src build/debian/control.in > build/debian/control
-	rm build/debian/control.in build/debian/control.src
-	rm build/Cargo.lock
-	find build/debian -name "*.hint" -delete
-	echo system >build/rust-toolchain
-	$(foreach i,$(SUBDIRS), \
-	    $(MAKE) -C build/$(i) clean ;)
+$(BUILDDIR): src debian etc Cargo.toml
+	rm -rf $(BUILDDIR) $(BUILDDIR).tmp
+	mkdir $(BUILDDIR).tmp
+	#mkdir $(BUILDDIR).tmp/.cargo
+	cp -a -t $(BUILDDIR).tmp $^ Makefile defines.mk
+	#cp -a -t $(BUILDDIR).tmp/.cargo .cargo/config
+	echo "git clone git://git.proxmox.com/git/pve-lxc-syscalld.git\\ngit checkout $(shell git rev-parse HEAD)" > $(BUILDDIR).tmp/debian/SOURCE
+	mv $(BUILDDIR).tmp $(BUILDDIR)
 
 .PHONY: deb
 deb: $(DEB)
-$(DEB): build
-	cd build; dpkg-buildpackage -b -us -uc --no-pre-clean --build-profiles=nodoc
+$(DEB): $(BUILDDIR)
+	cd $(BUILDDIR); dpkg-buildpackage -b -us -uc
 	lintian $(DEB)
-
-upload: deb
-	dcmd --deb rust-pve-lxc-syscalld_*.changes \
-	    | grep -v '.changes$$' \
-	    | tar -cf- -T- \
-	    | ssh -X repoman@repo.proxmox.com upload --product pve --dist bullseye
 
 .PHONY: dsc
 dsc: $(DSC)
-$(DSC): build
-	cd build; dpkg-buildpackage -S -us -uc -d -nc
+$(DSC): $(BUILDDIR)
+	cd $(BUILDDIR); dpkg-buildpackage -S -us -uc -d
 	lintian $(DSC)
+
+sbuild: $(DSC)
+	sbuild $(DSC)
+
+.PHONY: upload
+upload: UPLOAD_DIST ?= $(DEB_DISTRIBUTION)
+upload: $(DEB)
+	dcmd --deb pve-lxc-syscalld_*.changes \
+	    | grep -v '.changes$$' \
+	    | tar -cf- -T- \
+	    | ssh -X repoman@repo.proxmox.com upload --product pve --dist $(UPLOAD_DIST)
 
 .PHONY: dinstall
 dinstall:
@@ -97,5 +88,6 @@ dinstall:
 clean:
 	$(foreach i,$(SUBDIRS), \
 	    $(MAKE) -C $(i) clean ;)
-	cargo clean
-	rm -rf *.deb *.dsc *.tar.gz *.buildinfo *.changes build
+	rm -rf ./target
+	rm -rf ./$(BUILDDIR)
+	rm -f -- *.deb *.dsc *.tar.?z *.buildinfo *.build *.changes

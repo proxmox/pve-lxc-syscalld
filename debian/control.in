@@ -1,6 +1,0 @@
-Package: pve-lxc-syscalld
-Architecture: any
-Depends: ${shlibs:Depends}, ${misc:Depends},
-Description: PVE LXC syscall daemon
- A daemon which handles a selected subset of syscalls for unprivileged
- containers.
