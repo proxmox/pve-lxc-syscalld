@@ -116,7 +116,7 @@ impl SeqPacketSocket {
         let mut msg = AssertSendSync(libc::msghdr {
             msg_name: ptr::null_mut(),
             msg_namelen: 0,
-            msg_iov: iov.as_ptr() as _,
+            msg_iov: iov.as_mut_ptr() as _,
             msg_iovlen: iov.len(),
             msg_control: cmsg_buf.as_mut_ptr() as *mut std::ffi::c_void,
             msg_controllen: cmsg_buf.len(),
