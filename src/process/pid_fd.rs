@@ -15,7 +15,7 @@ use crate::nsfd::{ns_type, NsFd};
 
 use super::{CGroups, IdMap, IdMapEntry, ProcStatus, Uids, UserCaps};
 
-pub struct PidFd(RawFd, pid_t);
+pub struct PidFd(OwnedFd, pid_t);
 file_descriptor_impl!(PidFd);
 
 impl PidFd {
@@ -27,6 +27,7 @@ impl PidFd {
         let path = CString::new(format!("/proc/{pid}")).unwrap();
 
         let fd = c_try!(unsafe { libc::open(path.as_ptr(), libc::O_DIRECTORY | libc::O_CLOEXEC) });
+        let fd = unsafe { OwnedFd::from_raw_fd(fd) };
 
         Ok(Self(fd, pid))
     }
@@ -39,22 +40,22 @@ impl PidFd {
     /// fails if reading the pid from the pidfd's proc entry fails.
     pub unsafe fn try_from_fd(fd: OwnedFd) -> io::Result<Self> {
         #[allow(clippy::unnecessary_cast)] // pid_t is a type alias
-        let mut this = Self(fd.into_raw_fd(), -1 as pid_t);
+        let mut this = Self(fd, -1 as pid_t);
         let pid = this.read_pid()?;
         this.1 = pid;
         Ok(this)
     }
 
     pub fn mount_namespace(&self) -> io::Result<NsFd<ns_type::Mount>> {
-        NsFd::openat(self.0, c_str!("ns/mnt"))
+        NsFd::openat(self.0.as_raw_fd(), c_str!("ns/mnt"))
     }
 
     pub fn cgroup_namespace(&self) -> io::Result<NsFd<ns_type::Cgroup>> {
-        NsFd::openat(self.0, c_str!("ns/cgroup"))
+        NsFd::openat(self.0.as_raw_fd(), c_str!("ns/cgroup"))
     }
 
     pub fn user_namespace(&self) -> io::Result<NsFd<ns_type::User>> {
-        NsFd::openat(self.0, c_str!("ns/user"))
+        NsFd::openat(self.0.as_raw_fd(), c_str!("ns/user"))
     }
 
     fn fd(&self, path: &CStr, flags: c_int, mode: c_int) -> io::Result<OwnedFd> {

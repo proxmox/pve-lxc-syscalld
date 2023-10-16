@@ -4,7 +4,7 @@ use std::ffi::CStr;
 use std::io;
 use std::marker::PhantomData;
 use std::os::raw::c_int;
-use std::os::unix::io::RawFd;
+use std::os::unix::io::{AsRawFd, FromRawFd, RawFd};
 
 pub mod ns_type {
     pub trait NsType {
@@ -38,11 +38,11 @@ impl RawNsFd {
         let fd =
             c_try!(unsafe { libc::openat(fd, path.as_ptr(), libc::O_RDONLY | libc::O_CLOEXEC) });
 
-        Ok(Self(fd))
+        Ok(unsafe { Self::from_raw_fd(fd) })
     }
 
     pub fn setns(&self, ns_type: c_int) -> io::Result<()> {
-        c_try!(unsafe { libc::setns(self.0, ns_type) });
+        c_try!(unsafe { libc::setns(self.as_raw_fd(), ns_type) });
         Ok(())
     }
 }

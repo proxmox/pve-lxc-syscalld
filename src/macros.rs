@@ -10,13 +10,13 @@ macro_rules! c_str {
 macro_rules! file_descriptor_type {
     ($type:ident) => {
         #[repr(transparent)]
-        pub struct $type(::std::os::unix::io::RawFd);
+        pub struct $type(::std::os::unix::io::OwnedFd);
 
         file_descriptor_impl!($type);
 
         impl ::std::os::unix::io::FromRawFd for $type {
             unsafe fn from_raw_fd(fd: ::std::os::unix::io::RawFd) -> Self {
-                Self(fd)
+                Self(unsafe { ::std::os::unix::io::FromRawFd::from_raw_fd(fd) })
             }
         }
     };
@@ -24,33 +24,21 @@ macro_rules! file_descriptor_type {
 
 macro_rules! file_descriptor_impl {
     ($type:ty) => {
-        impl Drop for $type {
-            fn drop(&mut self) {
-                if self.0 >= 0 {
-                    unsafe {
-                        libc::close(self.0);
-                    }
-                }
-            }
-        }
-
         impl ::std::os::unix::io::AsFd for $type {
             fn as_fd(&self) -> ::std::os::unix::io::BorrowedFd<'_> {
-                unsafe { ::std::os::unix::io::BorrowedFd::borrow_raw(self.0) }
+                ::std::os::unix::io::AsFd::as_fd(&self.0)
             }
         }
 
         impl ::std::os::unix::io::AsRawFd for $type {
             fn as_raw_fd(&self) -> ::std::os::unix::io::RawFd {
-                self.0
+                ::std::os::unix::io::AsRawFd::as_raw_fd(&self.0)
             }
         }
 
         impl ::std::os::unix::io::IntoRawFd for $type {
-            fn into_raw_fd(mut self) -> ::std::os::unix::io::RawFd {
-                let fd = self.0;
-                self.0 = -libc::EBADF;
-                fd
+            fn into_raw_fd(self) -> ::std::os::unix::io::RawFd {
+                ::std::os::unix::io::IntoRawFd::into_raw_fd(self.0)
             }
         }
     };
