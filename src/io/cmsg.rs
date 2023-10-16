@@ -16,7 +16,7 @@ pub fn buffer<T: Sized>() -> Vec<u8> {
     let capacity = capacity::<T>();
     unsafe {
         let data = std::alloc::alloc(std::alloc::Layout::array::<u8>(capacity).unwrap());
-        Vec::from_raw_parts(data as *mut u8, capacity, capacity)
+        Vec::from_raw_parts(data, capacity, capacity)
     }
 }
 
