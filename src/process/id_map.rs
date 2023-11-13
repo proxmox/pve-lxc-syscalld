@@ -26,7 +26,7 @@ impl IdMap {
     pub fn map_from(&self, id: u64) -> Option<u64> {
         for entry in self.0.iter() {
             if entry.ns <= id && entry.ns + entry.range > id {
-                return Some(id + entry.host);
+                return Some(entry.host + id - entry.ns);
             }
         }
 
