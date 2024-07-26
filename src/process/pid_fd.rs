@@ -10,7 +10,6 @@ use anyhow::{bail, Error};
 use libc::pid_t;
 
 use crate::capability::Capabilities;
-use crate::error::io_err_other;
 use crate::nsfd::{ns_type, NsFd};
 
 use super::{CGroups, IdMap, IdMapEntry, ProcStatus, Uids, UserCaps};
@@ -153,7 +152,7 @@ impl PidFd {
                 })?,
                 16,
             )
-            .map_err(io_err_other)
+            .map_err(io::Error::other)
         }
 
         #[inline]
@@ -164,7 +163,7 @@ impl PidFd {
                 })?,
                 8,
             )
-            .map_err(io_err_other)
+            .map_err(io::Error::other)
         }
 
         let mut ids = Uids::default();

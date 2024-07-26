@@ -15,7 +15,6 @@ mod macros;
 pub mod apparmor;
 pub mod capability;
 pub mod client;
-pub mod error;
 pub mod fork;
 pub mod io;
 pub mod lxcseccomp;
