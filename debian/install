@@ -1,1 +1,1 @@
-etc/pve-lxc-syscalld.service /lib/systemd/system/
+etc/pve-lxc-syscalld.service /usr/lib/systemd/system/
