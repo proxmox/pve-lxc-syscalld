@@ -7,9 +7,9 @@ use std::mem;
 use std::os::raw::{c_int, c_uint};
 use std::os::unix::fs::FileExt;
 use std::os::unix::io::{FromRawFd, OwnedFd, RawFd};
+use std::sync::LazyLock;
 
 use anyhow::{bail, format_err, Error};
-use lazy_static::lazy_static;
 use libc::pid_t;
 use nix::errno::Errno;
 
@@ -80,11 +80,11 @@ unsafe fn io_vec<T>(value: &T) -> IoSlice {
     })
 }
 
-lazy_static! {
-    static ref SECCOMP_SIZES: SeccompNotifSizes = SeccompNotifSizes::get_checked()
+static SECCOMP_SIZES: LazyLock<SeccompNotifSizes> = LazyLock::new(|| {
+    SeccompNotifSizes::get_checked()
         .map_err(|e| panic!("{e}\nrefusing to run"))
-        .unwrap();
-}
+        .unwrap()
+});
 
 impl ProxyMessageBuffer {
     /// Allocate a new proxy message buffer with a specific maximum cookie size.
