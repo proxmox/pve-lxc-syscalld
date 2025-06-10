@@ -1,3 +1,15 @@
+pve-lxc-syscalld (2.0.0) trixie; urgency=medium
+
+  * update to nix 0.29 and bitflags 2
+
+  * update to rust edition 2024
+
+  * fix idmapping in (currently unexposed) quotactl sysctl
+
+  * various clippy fixes
+
+ -- Proxmox Support Team <support@proxmox.com>  Tue, 10 Jun 2025 11:58:59 +0200
+
 pve-lxc-syscalld (1.3.0) bookworm; urgency=medium
 
   * rebuild for Debian 12 bookworm based release series
