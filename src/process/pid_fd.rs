@@ -99,7 +99,7 @@ impl PidFd {
     }
 
     #[inline]
-    fn open_buffered(&self, path: &CStr) -> io::Result<impl BufRead> {
+    fn open_buffered(&self, path: &CStr) -> io::Result<impl BufRead + use<>> {
         Ok(BufReader::new(self.open_file(
             path,
             libc::O_RDONLY | libc::O_CLOEXEC,

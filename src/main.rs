@@ -140,7 +140,7 @@ async fn do_main(use_sd_notify: bool, socket_path: OsString) -> Result<(), Error
 }
 
 #[link(name = "systemd")]
-extern "C" {
+unsafe extern "C" {
     fn sd_notify(unset_environment: libc::c_int, state: *const libc::c_char) -> libc::c_int;
 }
 
