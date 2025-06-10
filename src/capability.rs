@@ -2,6 +2,7 @@ use std::io;
 use std::os::raw::{c_int, c_ulong};
 
 bitflags::bitflags! {
+    #[derive(Clone, Copy, Debug)]
     pub struct SecureBits: c_ulong {
         const NOROOT                        = 0b0_0000_0001;
         const NOROOT_LOCKED                 = 0b0_0000_0010;

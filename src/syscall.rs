@@ -91,9 +91,7 @@ macro_rules! sc_libc_try {
     ($expr:expr) => {{
         let res = $expr;
         if res == -1 {
-            return Ok($crate::syscall::SyscallStatus::Err(
-                ::nix::errno::errno() as _
-            ));
+            return Ok($crate::syscall::SyscallStatus::Err(Errno::last_raw()));
         } else {
             res
         }
