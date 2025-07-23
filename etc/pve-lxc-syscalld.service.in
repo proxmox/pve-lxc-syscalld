@@ -4,8 +4,8 @@ Before=pve-guests.service
 
 [Service]
 Type=notify
-ExecStart=%LIBEXECDIR%/pve-lxc-syscalld/pve-lxc-syscalld --system /run/pve/lxc-syscalld.sock
-RuntimeDirectory=pve
+ExecStart=%LIBEXECDIR%/pve-lxc-syscalld/pve-lxc-syscalld --system /run/pve-lxc-syscalld/socket
+RuntimeDirectory=pve-lxc-syscalld
 Restart=on-failure
 
 [Install]
