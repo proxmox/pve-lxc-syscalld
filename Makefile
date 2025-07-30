@@ -3,8 +3,6 @@ include /usr/share/dpkg/pkg-info.mk
 
 include defines.mk
 
-GITVERSION:=$(shell git rev-parse HEAD)
-
 SUBDIRS := etc
 
 ifeq ($(BUILD_MODE), release)
@@ -64,10 +62,13 @@ $(DEB): $(BUILDDIR)
 	lintian $(DEB)
 
 .PHONY: dsc
-dsc: $(DSC)
+dsc:
+	$(MAKE) clean
+	$(MAKE) $(DSC)
+	lintian $(DSC)
+
 $(DSC): $(BUILDDIR)
 	cd $(BUILDDIR); dpkg-buildpackage -S -us -uc -d
-	lintian $(DSC)
 
 sbuild: $(DSC)
 	sbuild $(DSC)
