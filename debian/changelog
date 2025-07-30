@@ -1,3 +1,13 @@
+pve-lxc-syscalld (2.0.1) trixie; urgency=medium
+
+  * replace dedicated lazy_static crate with LazyLock from std lib.
+
+  * service: avoid using generic runtime directory name, as when the service
+    is restarted, the directory will be recreated, which can have dire
+    consequences for other daemons reusing this generic directory.
+
+ -- Proxmox Support Team <support@proxmox.com>  Thu, 31 Jul 2025 01:28:12 +0200
+
 pve-lxc-syscalld (2.0.0) trixie; urgency=medium
 
   * update to nix 0.29 and bitflags 2
