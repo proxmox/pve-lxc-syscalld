@@ -18,6 +18,7 @@ COMPILED_BINS := \
 	$(addprefix $(COMPILEDIR)/,$(SERVICE_BIN))
 
 DEB=$(PACKAGE)_$(DEB_VERSION)_$(DEB_HOST_ARCH).deb
+DBG_DEB=$(PACKAGE)-dbgsym_$(DEB_VERSION)_$(DEB_HOST_ARCH).deb
 DSC=$(PACKAGE)_$(DEB_VERSION).dsc
 
 BUILDDIR ?= $(PACKAGE)-$(DEB_VERSION_UPSTREAM)
@@ -57,7 +58,7 @@ $(BUILDDIR): src debian etc Cargo.toml
 
 .PHONY: deb
 deb: $(DEB)
-$(DEB): $(BUILDDIR)
+$(DEB) $(DBG_DEB) &: $(BUILDDIR)
 	cd $(BUILDDIR); dpkg-buildpackage -b -us -uc
 	lintian $(DEB)
 
@@ -75,11 +76,8 @@ sbuild: $(DSC)
 
 .PHONY: upload
 upload: UPLOAD_DIST ?= $(DEB_DISTRIBUTION)
-upload: $(DEB)
-	dcmd --deb pve-lxc-syscalld_*.changes \
-	    | grep -v '.changes$$' \
-	    | tar -cf- -T- \
-	    | ssh -X repoman@repo.proxmox.com upload --product pve --dist $(UPLOAD_DIST)
+upload: $(DEB) $(DBG_DEB)
+	tar -cf - $(DEB) $(DBG_DEB) | ssh -X repoman@repo.proxmox.com upload --product pve --dist $(UPLOAD_DIST)
 
 .PHONY: dinstall
 dinstall:
