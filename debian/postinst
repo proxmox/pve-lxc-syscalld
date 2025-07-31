@@ -9,7 +9,11 @@ case "$1" in
     if test -n "$2"; then
       # TODO: remove once PVE 10.0 is released
       if dpkg --compare-versions "$2" 'lt' '2.0.1'; then
-        ln -s -f /run/pve-lxc-syscalld/socket /run/pve/lxc-syscalld.sock
+        if [ ! -d /run/pve ]; then
+            mkdir /run/pve || echo "failed to (re)create /run/pve"
+        fi
+        ln -s -f /run/pve-lxc-syscalld/socket /run/pve/lxc-syscalld.sock || \
+            echo "failed to create backward compat symlink, running CTs might not be able to communicate with us."
       fi
     fi
     ;;
