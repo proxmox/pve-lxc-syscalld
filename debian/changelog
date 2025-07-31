@@ -1,3 +1,9 @@
+pve-lxc-syscalld (2.0.2) trixie; urgency=medium
+
+  * d/postinst: improve error handling to avoid breaking upgrade
+
+ -- Proxmox Support Team <support@proxmox.com>  Thu, 31 Jul 2025 09:40:33 +0200
+
 pve-lxc-syscalld (2.0.1) trixie; urgency=medium
 
   * replace dedicated lazy_static crate with LazyLock from std lib.
